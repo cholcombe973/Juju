@@ -2,3 +2,5 @@
 name = "juju"
 version = "0.1.0"
 authors = ["Chris Holcombe <xfactor973@gmail.com>"]
+repository = "https://github.com/cholcombe973/Juju"
+license = "MIT"
