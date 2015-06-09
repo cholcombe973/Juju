@@ -19,21 +19,23 @@ impl Transport {
 #[derive(Debug)]
 pub struct Context{
     /// The scope for the current relation hook
-    relation_type: String,
+    pub relation_type: String,
     /// The relation ID for the current relation hook
-    relation_id: usize,
+    pub relation_id: usize,
     /// Local unit ID
-    unit: String,
+    pub unit: String,
     /// relation data for all related units
-    relations: HashMap<String,String>,
+    pub relations: HashMap<String,String>,
 }
 impl Context{
     //Gets a context that's filled out from the env variables
-    fn new_from_env() -> Context{
+    pub fn new_from_env() -> Context{
         let mut relations: HashMap<String,String> = HashMap::new();
         let relation_type = env::var("JUJU_RELATION").unwrap_or("".to_string());
-        let relation_id = env::var("JUJU_RELATION_ID").unwrap_or("0".to_string())
-            .parse::<usize>().unwrap();
+        let relation_id_str = env::var("JUJU_RELATION_ID").unwrap_or("".to_string());
+        let parts: Vec<&str> = relation_id_str.split(":").collect();
+        let relation_id: usize = parts[1].parse::<usize>().unwrap();
+
         let unit = env::var("JUJU_UNIT_NAME").unwrap_or("".to_string());
         Context{
             relation_type: relation_type,
@@ -97,9 +99,9 @@ pub fn close_port(port: usize, transport: Transport){
     run_command("close-port", &arg_list, false);
 }
 
-pub fn relation_set(key: &String, value: &String){
+pub fn relation_set(key: &str, value: &str){
     let mut arg_list: Vec<String>  = Vec::new();
-    let arg = key.clone() + &"=" + value;
+    let arg = format!("{}={}", key.clone(), value);
 
     arg_list.push(arg);
     run_command("relation-set", &arg_list, false);
@@ -157,15 +159,28 @@ pub fn relation_ids() ->Vec<Relation>{
     return related_units;
 }
 
+
+//Call back any functions that are registered
+/*
+pub fn process(args: Vec<String>){
+
+}
+
+///
+pub fn register_hook<F: Fn()>(func: F){
+
+}
+*/
+
 fn run_command_no_args(command: &str, as_root: bool)-> std::process::Output{
     if as_root{
         let mut cmd = std::process::Command::new("sudo");
-        println!("Running command: {:?}", cmd);
+        //println!("Running command: {:?}", cmd);
         let output = cmd.output().unwrap_or_else(|e| { panic!("failed to execute process: {} ", e)});
         return output;
     }else{
        let mut cmd = std::process::Command::new(command);
-        println!("Running command: {:?}", cmd);
+        //println!("Running command: {:?}", cmd);
         let output = cmd.output().unwrap_or_else(|e| { panic!("failed to execute process: {} ", e)});
         return output;
     }
@@ -178,7 +193,7 @@ fn run_command(command: &str, arg_list: &Vec<String>, as_root: bool) -> std::pro
         for arg in arg_list{
             cmd.arg(&arg);
         }
-        println!("Running command: {:?}", cmd);
+        //println!("Running command: {:?}", cmd);
         let output = cmd.output().unwrap_or_else(|e| { panic!("failed to execute process: {} ", e)});
         return output;
     }else{
@@ -186,7 +201,7 @@ fn run_command(command: &str, arg_list: &Vec<String>, as_root: bool) -> std::pro
         for arg in arg_list{
             cmd.arg(&arg);
         }
-        println!("Running command: {:?}", cmd);
+        //println!("Running command: {:?}", cmd);
         let output = cmd.output().unwrap_or_else(|e| { panic!("failed to execute process: {} ", e)});
         return output;
     }
