@@ -1,7 +1,7 @@
 [package]
 name = "juju"
 description = "A library to interact with the Juju system"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["Chris Holcombe <xfactor973@gmail.com>"]
 repository = "https://github.com/cholcombe973/Juju"
 license = "MIT"

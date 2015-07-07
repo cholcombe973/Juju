@@ -55,7 +55,12 @@ pub struct Relation {
     pub id: usize
 }
 
-pub fn log(msg: &String){//->Result<i32,String>{
+pub struct Hook {
+    pub name: String,
+    pub callback: Box<Fn()->Result<(),String>>,
+}
+
+pub fn log(msg: &String){
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push(msg.clone());
 
@@ -198,18 +203,38 @@ pub fn relation_ids() ->Result<Vec<Relation>, String>{
     return Ok(related_units);
 }
 
-
-//Call back any functions that are registered
-/*
-pub fn process(args: Vec<String>){
-
+pub fn storage_get_location() ->Result<String, String>{
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push("location".to_string());
+    let output = try!(run_command("storage-get", &arg_list, false).map_err(|e| e.to_string()));
+    return Ok(try!(String::from_utf8(output.stdout).map_err(|e| e.to_string())));
 }
 
-///
-pub fn register_hook<F: Fn()>(func: F){
+//Call this to process your cmd line arguments and call any needed hooks
+pub fn process_hooks(args: Vec<String>, registry: Vec<Hook>)->Result<(),String>{
+    let path = std::path::Path::new(args[0].trim());
 
+    let filename = match path.file_name(){
+        Some(filename) => filename,
+        None => {
+            return Err(format!("Unable to parse filename from {:?}", path));
+        },
+    };
+
+    let match_str = match filename.to_str(){
+        Some(filename) => filename,
+        None => {
+            return Err(format!("Failed to transform filename into string {:?}.  Bad symlink name perhaps? Bailing", filename));
+        },
+    };
+
+    for hook in registry {
+        if hook.name == match_str{
+            return (*hook.callback)();
+        }
+    }
+    return Err(format!("Warning: Failed to match callback for {}", match_str));
 }
-*/
 
 //Returns true/false if this unit is the leader
 pub fn is_leader()->Result<bool, String>{
