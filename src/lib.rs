@@ -103,6 +103,32 @@ pub fn config_get(key: &String) ->Result<String, String>{
     return Ok(value.trim().to_string());
 }
 
+pub fn config_get_all() -> Result<HashMap<String,String>, String>{
+    let mut values: HashMap<String,String> = HashMap::new();
+
+    let arg_list: Vec<String>  = vec!["--all".to_string()];
+    let output = try!(run_command("config-get", &arg_list, false).map_err(|e| e.to_string()));
+    let output_str = try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+    /*  Example output:
+        "brick_paths: /mnt/brick1 /mnt/brick2\ncluster_type: Replicate\n"
+    */
+    //For each line split at : and load the parts into the HashMap
+    for line in output_str.lines(){
+        let parts: Vec<&str> = line.split(":").filter(|s| !s.is_empty()).collect::<Vec<&str>>();
+        if ! parts.len() == 2{
+            //Skipping this possibly bogus value
+           continue;
+        }
+        let key = try!(parts.get(0).ok_or(
+            format!("Unable to get key from config-get from parts: {:?}", parts)));
+        let value = try!(parts.get(1).ok_or(
+            format!("Unable to get value from config-get from parts: {:?}", parts)));
+        values.insert(key.to_string(), value.to_string());
+    }
+
+    return Ok(values);
+}
+
 pub fn open_port(port: usize, transport: Transport)->Result<i32, String>{
     let mut arg_list: Vec<String>  = Vec::new();
     let port_string = format!("{}/{}", port.to_string(), transport.to_string());
@@ -233,7 +259,7 @@ pub fn process_hooks(args: Vec<String>, registry: Vec<Hook>)->Result<(),String>{
             return (*hook.callback)();
         }
     }
-    return Err(format!("Warning: Failed to match callback for {}", match_str));
+    return Err(format!("Warning: Unknown callback for hook {}", match_str));
 }
 
 //Returns true/false if this unit is the leader
