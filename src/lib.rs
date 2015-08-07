@@ -17,6 +17,31 @@ impl Transport {
 }
 
 #[derive(Debug)]
+pub enum StatusType{
+    Maintenance,
+    Waiting,
+    Active,
+    Blocked
+}
+
+impl StatusType {
+    pub fn to_string(self) -> String {
+        match self {
+            StatusType::Maintenance => "maintenance".to_string(),
+            StatusType::Waiting => "waiting".to_string(),
+            StatusType::Active => "active".to_string(),
+            StatusType::Blocked => "blocked".to_string(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Status{
+    pub status_type: StatusType,
+    pub message: String,
+}
+
+#[derive(Debug)]
 pub struct Context{
     /// The scope for the current relation hook
     pub relation_type: String,
@@ -60,6 +85,19 @@ pub struct Hook {
     pub callback: Box<Fn()->Result<(),String>>,
 }
 
+fn process_output(output: std::process::Output)->Result<i32, String>{
+    let status = output.status;
+
+    if status.success(){
+        return Ok(0);
+    }else{
+        return Err(
+            try!(String::from_utf8(output.stderr).map_err(|e| e.to_string()))
+        );
+    }
+}
+
+
 pub fn log(msg: &String){
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push(msg.clone());
@@ -71,12 +109,7 @@ pub fn log(msg: &String){
 
 pub fn reboot()->Result<i32,String>{
     let output = try!(run_command_no_args("juju-reboot", true).map_err(|e| e.to_string()));
-
-    let status = output.status;
-    match status.code(){
-        Some(v) => Ok(v),
-        None => Err(try!(String::from_utf8(output.stderr).map_err(|e| e.to_string()))),
-    }
+    return process_output(output);
 }
 
 pub fn unit_get_private_addr() ->Result<String, String>{
@@ -135,12 +168,7 @@ pub fn open_port(port: usize, transport: Transport)->Result<i32, String>{
 
     arg_list.push(port_string);
     let output = try!(run_command("open-port", &arg_list, false).map_err(|e| e.to_string()));
-
-    let status = output.status;
-    match status.code(){
-        Some(v) => Ok(v),
-        None => Err(try!(String::from_utf8(output.stderr).map_err(|e| e.to_string()))),
-    }
+    return process_output(output);
 }
 
 pub fn close_port(port: usize, transport: Transport)->Result<i32, String>{
@@ -149,12 +177,7 @@ pub fn close_port(port: usize, transport: Transport)->Result<i32, String>{
 
     arg_list.push(port_string);
     let output = try!(run_command("close-port", &arg_list, false).map_err(|e| e.to_string()));
-
-    let status = output.status;
-    match status.code(){
-        Some(v) => Ok(v),
-        None => Err(try!(String::from_utf8(output.stderr).map_err(|e| e.to_string()))),
-    }
+    return process_output(output);
 }
 
 pub fn relation_set(key: &str, value: &str)->Result<i32, String>{
@@ -163,11 +186,7 @@ pub fn relation_set(key: &str, value: &str)->Result<i32, String>{
 
     arg_list.push(arg);
     let output = try!(run_command("relation-set", &arg_list, false).map_err(|e| e.to_string()));
-    let status = output.status;
-    match status.code(){
-        Some(v) => Ok(v),
-        None => Err(try!(String::from_utf8(output.stderr).map_err(|e| e.to_string()))),
-    }
+    return process_output(output);
 }
 
 pub fn relation_get(key: &String) -> Result<String,String>{
@@ -227,6 +246,15 @@ pub fn relation_ids() ->Result<Vec<Relation>, String>{
         related_units.push(r);
     }
     return Ok(related_units);
+}
+
+pub fn status_set(status: Status)->Result<i32,String>{
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push(status.status_type.to_string());
+    arg_list.push(status.message);
+
+    let output = try!(run_command("status-set", &arg_list, false).map_err(|e| e.to_string()));
+    return process_output(output);
 }
 
 pub fn storage_get_location() ->Result<String, String>{
