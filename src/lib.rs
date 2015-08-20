@@ -1,3 +1,5 @@
+//! A library to interface with Juju.  For more information about Juju see
+//! [Juju](https://jujucharms.com/docs/stable/about-juju)
 use std::collections::HashMap;
 use std::env;
 
@@ -8,6 +10,7 @@ pub enum Transport {
 }
 
 impl Transport {
+    /// Returns a String representation of the enum variant
     fn to_string(self) -> String {
         match self {
             Transport::Tcp => "tcp".to_string(),
@@ -17,6 +20,8 @@ impl Transport {
 }
 
 #[derive(Debug)]
+/// For information about what these StatusType variants mean see: [Status reference]
+/// (https://jujucharms.com/docs/stable/reference-status)
 pub enum StatusType{
     Maintenance,
     Waiting,
@@ -25,6 +30,7 @@ pub enum StatusType{
 }
 
 impl StatusType {
+    /// Returns a String representation of the enum variant
     pub fn to_string(self) -> String {
         match self {
             StatusType::Maintenance => "maintenance".to_string(),
@@ -37,7 +43,9 @@ impl StatusType {
 
 #[derive(Debug)]
 pub struct Status{
+    /// The type of status
     pub status_type: StatusType,
+    /// A message to show alongside the status
     pub message: String,
 }
 
@@ -54,7 +62,14 @@ pub struct Context{
 }
 
 impl Context{
-    //Gets a context that's filled out from the env variables
+    ///Constructs a new `Context`
+    ///Creates a context that's filled out from the env variables
+    /// # Example usage
+    /// ```
+    /// extern crate juju;
+    /// let context = juju::Context::new_from_env();
+    /// ```
+
     pub fn new_from_env() -> Context{
         let relations: HashMap<String,String> = HashMap::new();
 
@@ -76,15 +91,25 @@ impl Context{
 
 #[derive(Debug)]
 pub struct Relation {
+    /// The name of a unit related to your service
     pub name: String,
+    /// The id of the unit related to your service
     pub id: usize
 }
 
 pub struct Hook {
+    /// The name of the hook to call
     pub name: String,
+    /// A function to call when Juju calls this hook
+    /// # Failures
+    /// Your function passed in needs to return a String on error so that users will
+    /// know what happened.  Ideally this should also be logged with juju::log
     pub callback: Box<Fn()->Result<(),String>>,
 }
 
+/// Returns 0 if the process completed successfully.
+/// #Failures
+/// Returns a String of the stderr if the process failed to execute
 fn process_output(output: std::process::Output)->Result<i32, String>{
     let status = output.status;
 
@@ -97,7 +122,16 @@ fn process_output(output: std::process::Output)->Result<i32, String>{
     }
 }
 
-
+/// Logs the msg passed to it
+/// # Examples
+/// ```
+/// extern crate juju;
+/// let error = "Error information";
+/// juju::log(&format!("Super important info. Error {}", error));
+/// ```
+/// # Failures
+/// Does not return anything on failure.  Java has the same semantics.  I'm still wondering
+/// if this is the right thing to do.
 pub fn log(msg: &String){
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push(msg.clone());
@@ -107,11 +141,17 @@ pub fn log(msg: &String){
     run_command("juju-log", &arg_list, false).is_ok();
 }
 
+/// This will reboot your juju instance.  Examples of using this are when a new kernel is installed
+/// and the virtual machine or server needs to be rebooted to use it.
+/// # Failures
+/// Returns stderr if the reboot command fails
 pub fn reboot()->Result<i32,String>{
     let output = try!(run_command_no_args("juju-reboot", true).map_err(|e| e.to_string()));
     return process_output(output);
 }
-
+/// This will return the private IP address associated with the unit.
+/// It can be very useful for services that require communicating with the other units related
+/// to it.
 pub fn unit_get_private_addr() ->Result<String, String>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push("private-address".to_string());
@@ -120,6 +160,7 @@ pub fn unit_get_private_addr() ->Result<String, String>{
     return Ok(private_addr.trim().to_string());
 }
 
+/// This will return the public IP address associated with the unit.
 pub fn unit_get_public_addr() ->Result<String, String>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push("public-address".to_string());
@@ -128,6 +169,7 @@ pub fn unit_get_public_addr() ->Result<String, String>{
     return Ok(public_addr.trim().to_string());
 }
 
+/// This will return a configuration item that corresponds to the key passed in
 pub fn config_get(key: &String) ->Result<String, String>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push(key.clone());
@@ -136,6 +178,9 @@ pub fn config_get(key: &String) ->Result<String, String>{
     return Ok(value.trim().to_string());
 }
 
+/// config_get_all will return all configuration options as a HashMap<String,String>
+/// # Failures
+/// Returns a String of if the configuration options are not able to be transformed into a HashMap
 pub fn config_get_all() -> Result<HashMap<String,String>, String>{
     let mut values: HashMap<String,String> = HashMap::new();
 
@@ -162,6 +207,8 @@ pub fn config_get_all() -> Result<HashMap<String,String>, String>{
     return Ok(values);
 }
 
+/// This will expose a port on the unit.  The transport argument will indicate whether tcp or udp
+/// should be exposed
 pub fn open_port(port: usize, transport: Transport)->Result<i32, String>{
     let mut arg_list: Vec<String>  = Vec::new();
     let port_string = format!("{}/{}", port.to_string(), transport.to_string());
@@ -171,6 +218,8 @@ pub fn open_port(port: usize, transport: Transport)->Result<i32, String>{
     return process_output(output);
 }
 
+/// This will hide a port on the unit.  The transport argument will indicate whether tcp or udp
+/// should be exposed
 pub fn close_port(port: usize, transport: Transport)->Result<i32, String>{
     let mut arg_list: Vec<String>  = Vec::new();
     let port_string = format!("{}/{}", port.to_string() , transport.to_string());
@@ -210,6 +259,10 @@ pub fn relation_get_by_unit(key: &String, unit: &Relation) -> Result<String,Stri
     //return try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
 }
 
+/// Returns a list of all related units
+/// # Failures
+/// Will return a String of the stderr if the call fails
+
 pub fn relation_list() ->Result<Vec<Relation>, String>{
     let mut related_units: Vec<Relation> = Vec::new();
 
@@ -248,6 +301,8 @@ pub fn relation_ids() ->Result<Vec<Relation>, String>{
     return Ok(related_units);
 }
 
+/// Set the status of your unit to indicate to the Juju if everything is ok or something is wrong.
+/// See the Status enum for information about what can be set.
 pub fn status_set(status: Status)->Result<i32,String>{
     let mut arg_list: Vec<String> = Vec::new();
     arg_list.push(status.status_type.to_string());
@@ -257,6 +312,7 @@ pub fn status_set(status: Status)->Result<i32,String>{
     return process_output(output);
 }
 
+/// If storage drives were allocated to your unit this will get the path of them.
 pub fn storage_get_location() ->Result<String, String>{
     let mut arg_list: Vec<String> = Vec::new();
     arg_list.push("location".to_string());
@@ -264,7 +320,34 @@ pub fn storage_get_location() ->Result<String, String>{
     return Ok(try!(String::from_utf8(output.stdout).map_err(|e| e.to_string())));
 }
 
-//Call this to process your cmd line arguments and call any needed hooks
+/// Call this to process your cmd line arguments and call any needed hooks
+/// # Examples
+/// ```
+///     extern crate juju;
+///     use std::env;
+///
+///     fn config_changed()->Result<(), String>{
+///         //Do nothing
+///         return Ok(());
+///    }
+///
+///    let args: Vec<String> = env::args().collect();
+///    if args.len() > 0{
+///         let mut hook_registry: Vec<juju::Hook> = Vec::new();
+///
+///         //Register our hooks with the Juju library
+///         hook_registry.push(juju::Hook{
+///             name: "config-changed".to_string(),
+///             callback: Box::new(config_changed),
+///         });
+///         let result =  juju::process_hooks(args, hook_registry);
+
+///         if result.is_err(){
+///             juju::log(&format!("Hook failed with error: {:?}", result.err()));
+///         }
+///    }
+/// ```
+///
 pub fn process_hooks(args: Vec<String>, registry: Vec<Hook>)->Result<(),String>{
     let path = std::path::Path::new(args[0].trim());
 
@@ -290,7 +373,27 @@ pub fn process_hooks(args: Vec<String>, registry: Vec<Hook>)->Result<(),String>{
     return Err(format!("Warning: Unknown callback for hook {}", match_str));
 }
 
-//Returns true/false if this unit is the leader
+/// Returns true/false if this unit is the leader
+/// # Failures
+/// Will return stderr as a String if the function fails to run
+/// # Examples
+/// ```
+/// extern crate juju;
+/// let leader = match juju::is_leader(){
+///   Ok(l) => l,
+///   Err(e) => {
+///     println!("Failed to run.  Error was {}", e);
+///     //Bail
+///     return;
+///   },
+/// };
+/// if leader{
+///   println!("I am the leader!");
+/// }else{
+///   println!("I am not the leader.  Maybe later I will be promoted");
+/// }
+/// ```
+///
 pub fn is_leader()->Result<bool, String>{
     let output = try!(run_command_no_args("is-leader", false).map_err(|e| e.to_string()));
     let output_str: String =  try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
