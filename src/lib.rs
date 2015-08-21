@@ -1,5 +1,54 @@
 //! A library to interface with Juju.  For more information about Juju see
 //! [Juju](https://jujucharms.com/docs/stable/about-juju)
+//!
+//! A hello world Juju charm example in Rust:
+//! You will need a working Juju environment for this to function properly.  See [Setting up Juju]
+//! (https://jujucharms.com/docs/stable/getting-started).  After Juju is functioning see
+//! [What makes a Charm](https://jujucharms.com/docs/stable/authors-charm-components) for the base
+//! components of a charm.
+//!
+//! Our src/main.rs will contain the following:
+//! # Examples
+//! ```
+//! extern crate juju;
+//! use std::env;
+//!
+//! fn config_changed()->Result<(), String>{
+//!     juju::log(&"Hello Juju from Rust!".to_string());
+//!     return Ok(());
+//! }
+//!
+//! fn main(){
+//!    let args: Vec<String> = env::args().collect();
+//!    if args.len() > 0{
+//!         let mut hook_registry: Vec<juju::Hook> = Vec::new();
+//!
+//!         //Register our hooks with the Juju library
+//!         hook_registry.push(juju::Hook{
+//!             name: "config-changed".to_string(),
+//!             callback: Box::new(config_changed),
+//!         });
+//!         let result =  juju::process_hooks(args, hook_registry);
+//!
+//!         if result.is_err(){
+//!             juju::log(&format!("Hook failed with error: {:?}", result.err()));
+//!         }else{
+//!             juju::log(&"Hook call was successful!".to_string());
+//!         }
+//!    }
+//! }
+//! ```
+//! Now you can build with `cargo build ` and install the binary in the hooks directory.
+//!
+//! Create a symlink in the hooks directory with `ln -s hello-world config-changed`.  Juju will
+//! attempt to run that symlink and our Juju library will map that to our config_changed function.
+//!
+//! We can test our hello-world charm by deploying with juju and watching the debug logs. See
+//! [Deploying a Charm](https://jujucharms.com/docs/stable/charms-deploying) for more information.
+//!
+//! You should see a message in juju debug-log like this `unit-hello-world-0[6229]: 2015-08-21 16:16:05 INFO unit.hello-world/0.juju-log server.go:254 Hello Juju from Rust!`
+//!
+
 use std::collections::HashMap;
 use std::env;
 
