@@ -50,7 +50,52 @@
 //!
 
 use std::collections::HashMap;
+use std::error::Error;
 use std::env;
+use std::io;
+
+//Custom error handling for the library
+#[derive(Debug)]
+pub enum JujuError{
+    IoError(io::Error),
+    FromUtf8Error(std::string::FromUtf8Error),
+    ParseIntError(std::num::ParseIntError),
+}
+
+impl JujuError{
+    fn new(err: String) -> JujuError {
+        JujuError::IoError(
+            io::Error::new(std::io::ErrorKind::Other, err)
+        )
+    }
+
+    pub fn to_string(&self) -> String{
+        match *self {
+            JujuError::IoError(ref err) => err.description().to_string(),
+            JujuError::FromUtf8Error(ref err) => err.description().to_string(),
+            JujuError::ParseIntError(ref err) => err.description().to_string(),
+        }
+    }
+}
+
+impl From<io::Error> for JujuError {
+    fn from(err: io::Error) -> JujuError {
+        JujuError::IoError(err)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for JujuError {
+    fn from(err: std::string::FromUtf8Error) -> JujuError {
+        JujuError::FromUtf8Error(err)
+    }
+}
+
+impl From<std::num::ParseIntError> for JujuError {
+    fn from(err: std::num::ParseIntError) -> JujuError {
+        JujuError::ParseIntError(err)
+    }
+}
+
 
 #[derive(Debug)]
 pub enum Transport {
@@ -159,14 +204,14 @@ pub struct Hook {
 /// Returns 0 if the process completed successfully.
 /// #Failures
 /// Returns a String of the stderr if the process failed to execute
-fn process_output(output: std::process::Output)->Result<i32, String>{
+fn process_output(output: std::process::Output)->Result<i32, JujuError>{
     let status = output.status;
 
     if status.success(){
         return Ok(0);
     }else{
-        return Err(
-            try!(String::from_utf8(output.stderr).map_err(|e| e.to_string()))
+        return Err(JujuError::new(
+            try!(String::from_utf8(output.stderr)))
         );
     }
 }
@@ -194,48 +239,88 @@ pub fn log(msg: &String){
 /// and the virtual machine or server needs to be rebooted to use it.
 /// # Failures
 /// Returns stderr if the reboot command fails
-pub fn reboot()->Result<i32,String>{
-    let output = try!(run_command_no_args("juju-reboot", true).map_err(|e| e.to_string()));
+pub fn reboot()->Result<i32,JujuError>{
+    let output = try!(run_command_no_args("juju-reboot", true));
     return process_output(output);
 }
+
+/// action_get gets the value of the parameter at the given key
+/// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
+/// # Failures
+/// Returns stderr if the action_get command fails
+pub fn action_get(key: &String) -> Result<String,JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push(key.clone());
+
+    let output = try!(run_command("action-get", &arg_list, false));
+    let value = try!(String::from_utf8(output.stdout));
+    return Ok(value.trim().to_string());
+}
+
+/// action_set permits the Action to set results in a map to be returned at completion of the Action.
+/// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
+/// # Failures
+/// Returns stderr if the action_set command fails
+pub fn action_set(key: &String, value: &String) -> Result<i32,JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push(format!("{}={}", key.clone(), value.clone()));
+
+    let output = try!(run_command("action-set", &arg_list, false));
+    return process_output(output);
+}
+
+/// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
+/// # Failures
+/// Returns stderr if the action_fail command fails
+pub fn action_fail(msg: &String) -> Result<i32, JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push(msg.clone());
+
+    let output = try!(run_command("action-fail", &arg_list, false));
+    return process_output(output);
+}
+
 /// This will return the private IP address associated with the unit.
 /// It can be very useful for services that require communicating with the other units related
 /// to it.
-pub fn unit_get_private_addr() ->Result<String, String>{
+pub fn unit_get_private_addr() ->Result<String, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push("private-address".to_string());
-    let output = try!(run_command("unit-get", &arg_list, false).map_err(|e| e.to_string()));
-    let private_addr: String = try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+
+    let output = try!(run_command("unit-get", &arg_list, false));
+    let private_addr: String = try!(String::from_utf8(output.stdout));
     return Ok(private_addr.trim().to_string());
 }
 
 /// This will return the public IP address associated with the unit.
-pub fn unit_get_public_addr() ->Result<String, String>{
+pub fn unit_get_public_addr() ->Result<String, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push("public-address".to_string());
-    let output = try!(run_command("unit-get", &arg_list, false).map_err(|e| e.to_string()));
-    let public_addr = try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+
+    let output = try!(run_command("unit-get", &arg_list, false));
+    let public_addr = try!(String::from_utf8(output.stdout));
     return Ok(public_addr.trim().to_string());
 }
 
 /// This will return a configuration item that corresponds to the key passed in
-pub fn config_get(key: &String) ->Result<String, String>{
+pub fn config_get(key: &String) ->Result<String, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push(key.clone());
-    let output = try!(run_command("config-get", &arg_list, false).map_err(|e| e.to_string()));
-    let value = try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+
+    let output = try!(run_command("config-get", &arg_list, false));
+    let value = try!(String::from_utf8(output.stdout));
     return Ok(value.trim().to_string());
 }
 
 /// config_get_all will return all configuration options as a HashMap<String,String>
 /// # Failures
 /// Returns a String of if the configuration options are not able to be transformed into a HashMap
-pub fn config_get_all() -> Result<HashMap<String,String>, String>{
+pub fn config_get_all() -> Result<HashMap<String,String>, JujuError>{
     let mut values: HashMap<String,String> = HashMap::new();
 
     let arg_list: Vec<String>  = vec!["--all".to_string()];
-    let output = try!(run_command("config-get", &arg_list, false).map_err(|e| e.to_string()));
-    let output_str = try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+    let output = try!(run_command("config-get", &arg_list, false));
+    let output_str = try!(String::from_utf8(output.stdout));
     /*  Example output:
         "brick_paths: /mnt/brick1 /mnt/brick2\ncluster_type: Replicate\n"
     */
@@ -246,10 +331,20 @@ pub fn config_get_all() -> Result<HashMap<String,String>, String>{
             //Skipping this possibly bogus value
            continue;
         }
-        let key = try!(parts.get(0).ok_or(
-            format!("Unable to get key from config-get from parts: {:?}", parts)));
-        let value = try!(parts.get(1).ok_or(
-            format!("Unable to get value from config-get from parts: {:?}", parts)));
+        let key = match parts.get(0){
+            Some(key) => key,
+            None => {
+                return Err(JujuError::new(
+                    format!("Unable to get key from config-get from parts: {:?}", parts)));
+            }
+        };
+        let value = match parts.get(1){
+            Some(value) => value,
+            None => {
+                return Err(JujuError::new(
+                    format!("Unable to get value from config-get from parts: {:?}", parts)));
+            }
+        };
         values.insert(key.to_string(), value.to_string());
     }
 
@@ -258,71 +353,68 @@ pub fn config_get_all() -> Result<HashMap<String,String>, String>{
 
 /// This will expose a port on the unit.  The transport argument will indicate whether tcp or udp
 /// should be exposed
-pub fn open_port(port: usize, transport: Transport)->Result<i32, String>{
+pub fn open_port(port: usize, transport: Transport)->Result<i32, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     let port_string = format!("{}/{}", port.to_string(), transport.to_string());
 
     arg_list.push(port_string);
-    let output = try!(run_command("open-port", &arg_list, false).map_err(|e| e.to_string()));
+    let output = try!(run_command("open-port", &arg_list, false));
     return process_output(output);
 }
 
 /// This will hide a port on the unit.  The transport argument will indicate whether tcp or udp
 /// should be exposed
-pub fn close_port(port: usize, transport: Transport)->Result<i32, String>{
+pub fn close_port(port: usize, transport: Transport)->Result<i32, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     let port_string = format!("{}/{}", port.to_string() , transport.to_string());
 
     arg_list.push(port_string);
-    let output = try!(run_command("close-port", &arg_list, false).map_err(|e| e.to_string()));
+    let output = try!(run_command("close-port", &arg_list, false));
     return process_output(output);
 }
 
-pub fn relation_set(key: &str, value: &str)->Result<i32, String>{
+pub fn relation_set(key: &str, value: &str)->Result<i32, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     let arg = format!("{}={}", key.clone(), value);
 
     arg_list.push(arg);
-    let output = try!(run_command("relation-set", &arg_list, false).map_err(|e| e.to_string()));
+    let output = try!(run_command("relation-set", &arg_list, false));
     return process_output(output);
 }
 
-pub fn relation_get(key: &String) -> Result<String,String>{
+pub fn relation_get(key: &String) -> Result<String,JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push(key.clone());
-    let output = try!(run_command("relation-get", &arg_list, false).map_err(|e| e.to_string()));
-    let value = try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+    let output = try!(run_command("relation-get", &arg_list, false));
+    let value = try!(String::from_utf8(output.stdout));
     return Ok(value);
 }
 
-pub fn relation_get_by_unit(key: &String, unit: &Relation) -> Result<String,String>{
+pub fn relation_get_by_unit(key: &String, unit: &Relation) -> Result<String,JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
-    //arg_list.push("-r".to_string());
     arg_list.push(key.clone());
     arg_list.push(format!("{}/{}", unit.name , unit.id.to_string()));
-    //let output = run_command("relation-get", &arg_list, false);
-    //return String::from_utf8(output.stdout).unwrap();
-    let output = try!(run_command("relation-get", &arg_list, false).map_err(|e| e.to_string()));
-    let relation = try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+
+    let output = try!(run_command("relation-get", &arg_list, false));
+    let relation = try!(String::from_utf8(output.stdout));
     return Ok(relation);
-    //return try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
 }
 
 /// Returns a list of all related units
 /// # Failures
 /// Will return a String of the stderr if the call fails
 
-pub fn relation_list() ->Result<Vec<Relation>, String>{
+pub fn relation_list() ->Result<Vec<Relation>, JujuError>{
     let mut related_units: Vec<Relation> = Vec::new();
 
-    let output = try!(run_command_no_args("relation-list", false).map_err(|e| e.to_string()));
-    let output_str =  try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+    let output = try!(run_command_no_args("relation-list", false));
+    let output_str =  try!(String::from_utf8(output.stdout));
 
     log(&format!("relation-list output: {}", output_str));
 
     for line in output_str.lines(){
         let v: Vec<&str> = line.split('/').collect();
-        let id: usize = try!(v[1].parse::<usize>().map_err(|e| e.to_string()));
+        let id: usize = try!(v[1].parse::<usize>());
         let r: Relation = Relation{
             name: v[0].to_string(),
             id: id,
@@ -332,15 +424,15 @@ pub fn relation_list() ->Result<Vec<Relation>, String>{
     return Ok(related_units);
 }
 
-pub fn relation_ids() ->Result<Vec<Relation>, String>{
+pub fn relation_ids() ->Result<Vec<Relation>, JujuError>{
     let mut related_units: Vec<Relation> = Vec::new();
-    let output = try!(run_command_no_args("relation-ids", false).map_err(|e| e.to_string()));
-    let output_str: String =  try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+    let output = try!(run_command_no_args("relation-ids", false));
+    let output_str: String =  try!(String::from_utf8(output.stdout));
     log(&format!("relation-ids output: {}", output_str));
 
     for line in output_str.lines(){
         let v: Vec<&str> = line.split(':').collect();
-        let id: usize = try!(v[1].parse::<usize>().map_err(|e| e.to_string()));
+        let id: usize = try!(v[1].parse::<usize>());
         let r: Relation = Relation{
             name: v[0].to_string(),
             id: id,
@@ -352,21 +444,21 @@ pub fn relation_ids() ->Result<Vec<Relation>, String>{
 
 /// Set the status of your unit to indicate to the Juju if everything is ok or something is wrong.
 /// See the Status enum for information about what can be set.
-pub fn status_set(status: Status)->Result<i32,String>{
+pub fn status_set(status: Status)->Result<i32,JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
     arg_list.push(status.status_type.to_string());
     arg_list.push(status.message);
 
-    let output = try!(run_command("status-set", &arg_list, false).map_err(|e| e.to_string()));
+    let output = try!(run_command("status-set", &arg_list, false));
     return process_output(output);
 }
 
 /// If storage drives were allocated to your unit this will get the path of them.
-pub fn storage_get_location() ->Result<String, String>{
+pub fn storage_get_location() ->Result<String, JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
     arg_list.push("location".to_string());
-    let output = try!(run_command("storage-get", &arg_list, false).map_err(|e| e.to_string()));
-    return Ok(try!(String::from_utf8(output.stdout).map_err(|e| e.to_string())));
+    let output = try!(run_command("storage-get", &arg_list, false));
+    return Ok(try!(String::from_utf8(output.stdout)));
 }
 
 /// Call this to process your cmd line arguments and call any needed hooks
@@ -410,7 +502,9 @@ pub fn process_hooks(args: Vec<String>, registry: Vec<Hook>)->Result<(),String>{
     let match_str = match filename.to_str(){
         Some(filename) => filename,
         None => {
-            return Err(format!("Failed to transform filename into string {:?}.  Bad symlink name perhaps? Bailing", filename));
+            return Err(
+                format!("Failed to transform filename into string {:?}.  Bad symlink name perhaps? Bailing",
+                filename));
         },
     };
 
@@ -443,9 +537,9 @@ pub fn process_hooks(args: Vec<String>, registry: Vec<Hook>)->Result<(),String>{
 /// }
 /// ```
 ///
-pub fn is_leader()->Result<bool, String>{
-    let output = try!(run_command_no_args("is-leader", false).map_err(|e| e.to_string()));
-    let output_str: String =  try!(String::from_utf8(output.stdout).map_err(|e| e.to_string()));
+pub fn is_leader()->Result<bool, JujuError>{
+    let output = try!(run_command_no_args("is-leader", false));
+    let output_str: String =  try!(String::from_utf8(output.stdout));
     match output_str.trim().as_ref() {
         "True" => Ok(true),
         "False" => Ok(false),
@@ -453,37 +547,33 @@ pub fn is_leader()->Result<bool, String>{
     }
 }
 
-fn run_command_no_args(command: &str, as_root: bool)-> Result<std::process::Output, String>{
+fn run_command_no_args(command: &str, as_root: bool)-> Result<std::process::Output, JujuError>{
     if as_root{
         let mut cmd = std::process::Command::new("sudo");
-        //println!("Running command: {:?}", cmd);
-        let output = try!(cmd.output().map_err(|e| e.to_string()));
+        let output = try!(cmd.output());
         return Ok(output);
     }else{
        let mut cmd = std::process::Command::new(command);
-        //println!("Running command: {:?}", cmd);
-        let output = try!(cmd.output().map_err(|e| e.to_string()));
+        let output = try!(cmd.output());
         return Ok(output);
     }
 }
 
-fn run_command(command: &str, arg_list: &Vec<String>, as_root: bool) -> Result<std::process::Output, String>{
+fn run_command(command: &str, arg_list: &Vec<String>, as_root: bool) -> Result<std::process::Output, JujuError>{
     if as_root{
         let mut cmd = std::process::Command::new("sudo");
         cmd.arg(command);
         for arg in arg_list{
             cmd.arg(&arg);
         }
-        //println!("Running command: {:?}", cmd);
-        let output = try!(cmd.output().map_err(|e| e.to_string()));
+        let output = try!(cmd.output());
         return Ok(output);
     }else{
        let mut cmd = std::process::Command::new(command);
         for arg in arg_list{
             cmd.arg(&arg);
         }
-        //println!("Running command: {:?}", cmd);
-        let output = try!(cmd.output().map_err(|e| e.to_string()));
+        let output = try!(cmd.output());
         return Ok(output);
     }
 }
