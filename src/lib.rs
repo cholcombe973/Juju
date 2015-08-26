@@ -525,7 +525,7 @@ pub fn process_hooks(args: Vec<String>, registry: Vec<Hook>)->Result<(),String>{
 /// let leader = match juju::is_leader(){
 ///   Ok(l) => l,
 ///   Err(e) => {
-///     println!("Failed to run.  Error was {}", e);
+///     println!("Failed to run.  Error was {:?}", e);
 ///     //Bail
 ///     return;
 ///   },
