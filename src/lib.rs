@@ -461,6 +461,22 @@ pub fn storage_get_location() ->Result<String, JujuError>{
     return Ok(try!(String::from_utf8(output.stdout)));
 }
 
+/// If storage drives were allocated to your unit this will get the path of the named device.
+pub fn storage_get(name: &str) ->Result<String, JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push("location".to_string());
+    arg_list.push(name.to_string());
+    let output = try!(run_command("storage-get", &arg_list, false));
+    return Ok(try!(String::from_utf8(output.stdout)));
+}
+
+/// storage-list may be used to list storage instances that are attached to the unit.
+/// The names returned may be passed through to storage_get_location.
+pub fn storage_list() ->Result<String, JujuError>{
+    let output = try!(run_command_no_args("storage-list", false));
+    return Ok(try!(String::from_utf8(output.stdout)));
+}
+
 /// Call this to process your cmd line arguments and call any needed hooks
 /// # Examples
 /// ```
