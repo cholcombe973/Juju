@@ -454,10 +454,31 @@ pub fn status_set(status: Status)->Result<i32,JujuError>{
 }
 
 /// If storage drives were allocated to your unit this will get the path of them.
+/// In the storage-attaching hook this will tell you the location where the storage
+/// is attached to.  IE: /dev/xvdf for block devices or /mnt/{name} for filesystem devices
 pub fn storage_get_location() ->Result<String, JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
     arg_list.push("location".to_string());
     let output = try!(run_command("storage-get", &arg_list, false));
+    return Ok(try!(String::from_utf8(output.stdout)));
+}
+
+/// Return the location of the mounted storage device.  The mounted
+/// storage devices can be gotten by calling storage_list() and
+/// then passed into this function to get their mount location.
+pub fn storage_get(name: &str) ->Result<String, JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push("-s".to_string());
+    arg_list.push(name.to_string());
+    arg_list.push("location".to_string());
+    let output = try!(run_command("storage-get", &arg_list, false));
+    return Ok(try!(String::from_utf8(output.stdout)));
+}
+
+/// Used to list storage instances that are attached to the unit.
+/// The names returned may be passed through to storage_get
+pub fn storage_list() ->Result<String, JujuError>{
+    let output = try!(run_command_no_args("storage-list", false));
     return Ok(try!(String::from_utf8(output.stdout)));
 }
 
