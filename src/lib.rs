@@ -19,23 +19,20 @@
 //! }
 //!
 //! fn main(){
-//!    let args: Vec<String> = env::args().collect();
-//!    if args.len() > 0{
-//!         let mut hook_registry: Vec<juju::Hook> = Vec::new();
+//!     let mut hook_registry: Vec<juju::Hook> = Vec::new();
 //!
-//!         //Register our hooks with the Juju library
-//!         hook_registry.push(juju::Hook{
-//!             name: "config-changed".to_string(),
-//!             callback: Box::new(config_changed),
-//!         });
-//!         let result =  juju::process_hooks(args, hook_registry);
+//!     //Register our hooks with the Juju library
+//!     hook_registry.push(juju::Hook{
+//!         name: "config-changed".to_string(),
+//!         callback: config_changed,
+//!     });
+//!     let result =  juju::process_hooks(hook_registry);
 //!
-//!         if result.is_err(){
-//!             juju::log(&format!("Hook failed with error: {:?}", result.err()));
-//!         }else{
-//!             juju::log(&"Hook call was successful!".to_string());
-//!         }
-//!    }
+//!     if result.is_err(){
+//!         juju::log(&format!("Hook failed with error: {:?}", result.err()));
+//!     }else{
+//!         juju::log(&"Hook call was successful!".to_string());
+//!     }
 //! }
 //! ```
 //! Now you can build with `cargo build ` and install the binary in the hooks directory.
@@ -48,6 +45,8 @@
 //!
 //! You should see a message in juju debug-log like this `unit-hello-world-0[6229]: 2015-08-21 16:16:05 INFO unit.hello-world/0.juju-log server.go:254 Hello Juju from Rust!`
 //!
+
+extern crate charmhelpers;
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -198,7 +197,7 @@ pub struct Hook {
     /// # Failures
     /// Your function passed in needs to return a String on error so that users will
     /// know what happened.  Ideally this should also be logged with juju::log
-    pub callback: Box<Fn()->Result<(),String>>,
+    pub callback: fn() -> Result<(),String>,
 }
 
 /// Returns 0 if the process completed successfully.
@@ -493,48 +492,32 @@ pub fn storage_list() ->Result<String, JujuError>{
 ///         return Ok(());
 ///    }
 ///
-///    let args: Vec<String> = env::args().collect();
-///    if args.len() > 0{
-///         let mut hook_registry: Vec<juju::Hook> = Vec::new();
+///     let mut hook_registry: Vec<juju::Hook> = Vec::new();
 ///
-///         //Register our hooks with the Juju library
-///         hook_registry.push(juju::Hook{
-///             name: "config-changed".to_string(),
-///             callback: Box::new(config_changed),
-///         });
-///         let result =  juju::process_hooks(args, hook_registry);
+///     //Register our hooks with the Juju library
+///     hook_registry.push(juju::Hook{
+///         name: "config-changed".to_string(),
+///         callback: config_changed,
+///     });
+///     let result =  juju::process_hooks(hook_registry);
 
-///         if result.is_err(){
-///             juju::log(&format!("Hook failed with error: {:?}", result.err()));
-///         }
-///    }
+///     if result.is_err(){
+///         juju::log(&format!("Hook failed with error: {:?}", result.err()));
+///     }
 /// ```
 ///
-pub fn process_hooks(args: Vec<String>, registry: Vec<Hook>)->Result<(),String>{
-    let path = std::path::Path::new(args[0].trim());
-
-    let filename = match path.file_name(){
-        Some(filename) => filename,
-        None => {
-            return Err(format!("Unable to parse filename from {:?}", path));
-        },
-    };
-
-    let match_str = match filename.to_str(){
-        Some(filename) => filename,
-        None => {
-            return Err(
-                format!("Failed to transform filename into string {:?}.  Bad symlink name perhaps? Bailing",
-                filename));
-        },
+pub fn process_hooks(registry: Vec<Hook>)->Result<(),String>{
+    let hook_name = match charmhelpers::core::hookenv::hook_name() {
+        Some(s) => s,
+        _ => "".to_string(),
     };
 
     for hook in registry {
-        if hook.name == match_str{
-            return (*hook.callback)();
+        if hook_name.contains(&hook.name) {
+            return (hook.callback)();
         }
     }
-    return Err(format!("Warning: Unknown callback for hook {}", match_str));
+    return Err(format!("Warning: Unknown callback for hook {}", hook_name));
 }
 
 /// Returns true/false if this unit is the leader
