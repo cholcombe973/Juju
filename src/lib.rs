@@ -12,9 +12,10 @@
 //! ```
 //! extern crate juju;
 //! use std::env;
+//! use juju::LogLevel;
 //!
 //! fn config_changed()->Result<(), String>{
-//!     juju::log(&"Hello Juju from Rust!".to_string());
+//!     juju::log("Hello Juju from Rust!", LogLevel::Debug);
 //!     return Ok(());
 //! }
 //!
@@ -29,9 +30,9 @@
 //!     let result =  juju::process_hooks(hook_registry);
 //!
 //!     if result.is_err(){
-//!         juju::log(&format!("Hook failed with error: {:?}", result.err()));
+//!         juju::log(&format!("Hook failed with error: {:?}", result.err()), LogLevel::Error);
 //!     }else{
-//!         juju::log(&"Hook call was successful!".to_string());
+//!         juju::log("Hook call was successful!", LogLevel::Debug);
 //!     }
 //! }
 //! ```
@@ -215,19 +216,44 @@ fn process_output(output: std::process::Output)->Result<i32, JujuError>{
     }
 }
 
+/// The level to log information at to Juju.
+/// The levels from lowest to highest are DEBUG, INFO, WARNING, ERROR, CRITICAL.
+pub enum LogLevel{
+    Critical,
+    Debug,
+    Error,
+    Info,
+    Warning,
+}
+
+impl LogLevel{
+    fn to_string(&self) -> String{
+        match self{
+            &LogLevel::Critical => "CRITICAL".to_string(),
+            &LogLevel::Debug => "DEBUG".to_string(),
+            &LogLevel::Error => "ERROR".to_string(),
+            &LogLevel::Info => "INFO".to_string(),
+            &LogLevel::Warning => "WARNING".to_string(),
+        }
+    }
+}
+
 /// Logs the msg passed to it
 /// # Examples
 /// ```
 /// extern crate juju;
 /// let error = "Error information";
-/// juju::log(&format!("Super important info. Error {}", error));
+/// juju::log(&format!("Super important info. Error {}", error), juju::LogLevel::Error);
 /// ```
 /// # Failures
 /// Does not return anything on failure.  Java has the same semantics.  I'm still wondering
 /// if this is the right thing to do.
-pub fn log(msg: &String){
+pub fn log(msg: &str, level: LogLevel){
     let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push(msg.clone());
+    arg_list.push("-l".to_string());
+    arg_list.push(level.to_string());
+
+    arg_list.push(msg.to_string());
 
     //Ignoring errors if they happen.
     //TODO: should this return success/failure?  It makes the code ugly
@@ -247,9 +273,9 @@ pub fn reboot()->Result<i32,JujuError>{
 /// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
 /// # Failures
 /// Returns stderr if the action_get command fails
-pub fn action_get(key: &String) -> Result<String,JujuError>{
+pub fn action_get(key: &str) -> Result<String,JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
-    arg_list.push(key.clone());
+    arg_list.push(key.to_string());
 
     let output = try!(run_command("action-get", &arg_list, false));
     let value = try!(String::from_utf8(output.stdout));
@@ -260,9 +286,9 @@ pub fn action_get(key: &String) -> Result<String,JujuError>{
 /// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
 /// # Failures
 /// Returns stderr if the action_set command fails
-pub fn action_set(key: &String, value: &String) -> Result<i32,JujuError>{
+pub fn action_set(key: &str, value: &str) -> Result<i32,JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
-    arg_list.push(format!("{}={}", key.clone(), value.clone()));
+    arg_list.push(format!("{}={}", key, value));
 
     let output = try!(run_command("action-set", &arg_list, false));
     return process_output(output);
@@ -271,9 +297,9 @@ pub fn action_set(key: &String, value: &String) -> Result<i32,JujuError>{
 /// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
 /// # Failures
 /// Returns stderr if the action_fail command fails
-pub fn action_fail(msg: &String) -> Result<i32, JujuError>{
+pub fn action_fail(msg: &str) -> Result<i32, JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
-    arg_list.push(msg.clone());
+    arg_list.push(msg.to_string());
 
     let output = try!(run_command("action-fail", &arg_list, false));
     return process_output(output);
@@ -302,9 +328,9 @@ pub fn unit_get_public_addr() ->Result<String, JujuError>{
 }
 
 /// This will return a configuration item that corresponds to the key passed in
-pub fn config_get(key: &String) ->Result<String, JujuError>{
+pub fn config_get(key: &str) ->Result<String, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push(key.clone());
+    arg_list.push(key.to_string());
 
     let output = try!(run_command("config-get", &arg_list, false));
     let value = try!(String::from_utf8(output.stdout));
@@ -381,17 +407,17 @@ pub fn relation_set(key: &str, value: &str)->Result<i32, JujuError>{
     return process_output(output);
 }
 
-pub fn relation_get(key: &String) -> Result<String,JujuError>{
+pub fn relation_get(key: &str) -> Result<String,JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push(key.clone());
+    arg_list.push(key.to_string());
     let output = try!(run_command("relation-get", &arg_list, false));
     let value = try!(String::from_utf8(output.stdout));
     return Ok(value);
 }
 
-pub fn relation_get_by_unit(key: &String, unit: &Relation) -> Result<String,JujuError>{
+pub fn relation_get_by_unit(key: &str, unit: &Relation) -> Result<String,JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push(key.clone());
+    arg_list.push(key.to_string());
     arg_list.push(format!("{}/{}", unit.name , unit.id.to_string()));
 
     let output = try!(run_command("relation-get", &arg_list, false));
@@ -409,7 +435,7 @@ pub fn relation_list() ->Result<Vec<Relation>, JujuError>{
     let output = try!(run_command_no_args("relation-list", false));
     let output_str =  try!(String::from_utf8(output.stdout));
 
-    log(&format!("relation-list output: {}", output_str));
+    log(&format!("relation-list output: {}", output_str), LogLevel::Debug);
 
     for line in output_str.lines(){
         let v: Vec<&str> = line.split('/').collect();
@@ -427,7 +453,7 @@ pub fn relation_ids() ->Result<Vec<Relation>, JujuError>{
     let mut related_units: Vec<Relation> = Vec::new();
     let output = try!(run_command_no_args("relation-ids", false));
     let output_str: String =  try!(String::from_utf8(output.stdout));
-    log(&format!("relation-ids output: {}", output_str));
+    log(&format!("relation-ids output: {}", output_str), LogLevel::Debug);
 
     for line in output_str.lines(){
         let v: Vec<&str> = line.split(':').collect();
@@ -502,7 +528,7 @@ pub fn storage_list() ->Result<String, JujuError>{
 ///     let result =  juju::process_hooks(hook_registry);
 
 ///     if result.is_err(){
-///         juju::log(&format!("Hook failed with error: {:?}", result.err()));
+///         juju::log(&format!("Hook failed with error: {:?}", result.err()), juju::LogLevel::Error);
 ///     }
 /// ```
 ///
