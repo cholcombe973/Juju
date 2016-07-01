@@ -11,11 +11,12 @@
 //! # Examples
 //! ```
 //! extern crate juju;
+//! extern crate log;
 //! use std::env;
-//! use juju::LogLevel;
+//! use log::LogLevel;
 //!
 //! fn config_changed()->Result<(), String>{
-//!     juju::log("Hello Juju from Rust!", LogLevel::Debug);
+//!     juju::log("Hello Juju from Rust!", Some(LogLevel::Debug));
 //!     return Ok(());
 //! }
 //!
@@ -30,9 +31,9 @@
 //!     let result =  juju::process_hooks(hook_registry);
 //!
 //!     if result.is_err(){
-//!         juju::log(&format!("Hook failed with error: {:?}", result.err()), LogLevel::Error);
+//!         juju::log(&format!("Hook failed with error: {:?}", result.err()), Some(LogLevel::Error));
 //!     }else{
-//!         juju::log("Hook call was successful!", LogLevel::Debug);
+//!         juju::log("Hook call was successful!", Some(LogLevel::Debug));
 //!     }
 //! }
 //! ```
@@ -48,12 +49,18 @@
 //!
 
 extern crate charmhelpers;
+extern crate log;
 
 use std::collections::HashMap;
-use std::error::Error;
 use std::env;
+use std::error::Error;
+use std::str::FromStr;
+use std::net::IpAddr;
 use std::io;
-use std::path::PathBuf;
+
+use log::LogLevel;
+
+pub use charmhelpers::core::hookenv::{log};
 
 //Custom error handling for the library
 #[derive(Debug)]
@@ -62,6 +69,7 @@ pub enum JujuError{
     FromUtf8Error(std::string::FromUtf8Error),
     ParseIntError(std::num::ParseIntError),
     VarError(std::env::VarError),
+    AddrParseError(std::net::AddrParseError),
 }
 
 impl JujuError{
@@ -77,6 +85,7 @@ impl JujuError{
             JujuError::FromUtf8Error(ref err) => err.description().to_string(),
             JujuError::ParseIntError(ref err) => err.description().to_string(),
             JujuError::VarError(ref err) => err.description().to_string(),
+            JujuError::AddrParseError(ref err) => err.description().to_string(),
         }
     }
 }
@@ -102,6 +111,12 @@ impl From<std::num::ParseIntError> for JujuError {
 impl From<std::env::VarError> for JujuError {
     fn from(err: std::env::VarError) -> JujuError {
         JujuError::VarError(err)
+    }
+}
+
+impl From<std::net::AddrParseError> for JujuError {
+    fn from(err: std::net::AddrParseError) -> JujuError {
+        JujuError::AddrParseError(err)
     }
 }
 
@@ -225,50 +240,6 @@ fn process_output(output: std::process::Output)->Result<i32, JujuError>{
     }
 }
 
-/// The level to log information at to Juju.
-/// The levels from lowest to highest are DEBUG, INFO, WARNING, ERROR, CRITICAL.
-pub enum LogLevel{
-    Critical,
-    Debug,
-    Error,
-    Info,
-    Warning,
-}
-
-impl LogLevel{
-    fn to_string(&self) -> String{
-        match self{
-            &LogLevel::Critical => "CRITICAL".to_string(),
-            &LogLevel::Debug => "DEBUG".to_string(),
-            &LogLevel::Error => "ERROR".to_string(),
-            &LogLevel::Info => "INFO".to_string(),
-            &LogLevel::Warning => "WARNING".to_string(),
-        }
-    }
-}
-
-/// Logs the msg passed to it
-/// # Examples
-/// ```
-/// extern crate juju;
-/// let error = "Error information";
-/// juju::log(&format!("Super important info. Error {}", error), juju::LogLevel::Error);
-/// ```
-/// # Failures
-/// Does not return anything on failure.  Java has the same semantics.  I'm still wondering
-/// if this is the right thing to do.
-pub fn log(msg: &str, level: LogLevel){
-    let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push("-l".to_string());
-    arg_list.push(level.to_string());
-
-    arg_list.push(msg.to_string());
-
-    //Ignoring errors if they happen.
-    //TODO: should this return success/failure?  It makes the code ugly
-    run_command("juju-log", &arg_list, false).is_ok();
-}
-
 /// This will reboot your juju instance.  Examples of using this are when a new kernel is installed
 /// and the virtual machine or server needs to be rebooted to use it.
 /// # Failures
@@ -289,14 +260,6 @@ pub fn action_get(key: &str) -> Result<String,JujuError>{
     let output = try!(run_command("action-get", &arg_list, false));
     let value = try!(String::from_utf8(output.stdout));
     return Ok(value.trim().to_string());
-}
-
-/// Get the root directory of the current charm
-/// # Failures
-/// Returns JujuError if the environment variable CHARM_DIR does not exist
-pub fn charm_dir() -> Result<PathBuf,JujuError>{
-    let p = try!(env::var("CHARM_DIR"));
-    return Ok(PathBuf::from(p));
 }
 
 /// Get the name of the currently executing action
@@ -351,25 +314,27 @@ pub fn action_fail(msg: &str) -> Result<i32, JujuError>{
 /// to it.
 /// # Failures
 /// Will return a String of the stderr if the call fails
-pub fn unit_get_private_addr() ->Result<String, JujuError>{
+pub fn unit_get_private_addr() ->Result<IpAddr, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push("private-address".to_string());
 
     let output = try!(run_command("unit-get", &arg_list, false));
     let private_addr: String = try!(String::from_utf8(output.stdout));
-    return Ok(private_addr.trim().to_string());
+    let ip = try!(IpAddr::from_str(private_addr.trim()));
+    return Ok(ip);
 }
 
 /// This will return the public IP address associated with the unit.
 /// # Failures
 /// Will return a String of the stderr if the call fails
-pub fn unit_get_public_addr() ->Result<String, JujuError>{
+pub fn unit_get_public_addr() ->Result<IpAddr, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push("public-address".to_string());
 
     let output = try!(run_command("unit-get", &arg_list, false));
     let public_addr = try!(String::from_utf8(output.stdout));
-    return Ok(public_addr.trim().to_string());
+    let ip = try!(IpAddr::from_str(public_addr.trim()));
+    return Ok(ip);
 }
 
 /// This will return a configuration item that corresponds to the key passed in
@@ -494,7 +459,7 @@ pub fn relation_list() ->Result<Vec<Relation>, JujuError>{
     let output = try!(run_command_no_args("relation-list", false));
     let output_str =  try!(String::from_utf8(output.stdout));
 
-    log(&format!("relation-list output: {}", output_str), LogLevel::Debug);
+    log(&format!("relation-list output: {}", output_str), Some(LogLevel::Debug));
 
     for line in output_str.lines(){
         let v: Vec<&str> = line.split('/').collect();
@@ -512,7 +477,7 @@ pub fn relation_ids() ->Result<Vec<Relation>, JujuError>{
     let mut related_units: Vec<Relation> = Vec::new();
     let output = try!(run_command_no_args("relation-ids", false));
     let output_str: String =  try!(String::from_utf8(output.stdout));
-    log(&format!("relation-ids output: {}", output_str), LogLevel::Debug);
+    log(&format!("relation-ids output: {}", output_str), Some(LogLevel::Debug));
 
     for line in output_str.lines(){
         let v: Vec<&str> = line.split(':').collect();
@@ -586,6 +551,7 @@ pub fn storage_list() ->Result<String, JujuError>{
 /// # Examples
 /// ```
 ///     extern crate juju;
+///     extern crate log;
 ///     use std::env;
 ///
 ///     fn config_changed()->Result<(), String>{
@@ -603,7 +569,7 @@ pub fn storage_list() ->Result<String, JujuError>{
 ///     let result =  juju::process_hooks(hook_registry);
 ///
 ///     if result.is_err(){
-///         juju::log(&format!("Hook failed with error: {:?}", result.err()), juju::LogLevel::Error);
+///         juju::log(&format!("Hook failed with error: {:?}", result.err()), Some(log::LogLevel::Error));
 ///     }
 /// ```
 ///
