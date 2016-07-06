@@ -425,6 +425,19 @@ pub fn relation_set(key: &str, value: &str)->Result<i32, JujuError>{
     let output = try!(run_command("relation-set", &arg_list, false));
     return process_output(output);
 }
+/// Sets relation information using a specific relation ID. Used outside of relation hooks
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn relation_set_by_id(key: &str, value: &str, id: &Relation) -> Result<String,JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
+
+    arg_list.push(format!("-r {}:{}", id.name , id.id.to_string()));
+    arg_list.push(format!("{}={}",key, value).to_string());
+
+    let output = try!(run_command("relation-get", &arg_list, false));
+    let relation = try!(String::from_utf8(output.stdout));
+    return Ok(relation);
+}
 
 /// Get relation information for the current unit
 /// # Failures
@@ -444,6 +457,20 @@ pub fn relation_get_by_unit(key: &str, unit: &Relation) -> Result<String,JujuErr
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push(key.to_string());
     arg_list.push(format!("{}/{}", unit.name , unit.id.to_string()));
+
+    let output = try!(run_command("relation-get", &arg_list, false));
+    let relation = try!(String::from_utf8(output.stdout));
+    return Ok(relation);
+}
+
+/// Get relation information using a specific relation ID. Used outside of relation hooks
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn relation_get_by_id(key: &str, id: &Relation) -> Result<String,JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
+
+    arg_list.push(format!("-r {}:{}", id.name , id.id.to_string()));
+    arg_list.push(key.to_string());
 
     let output = try!(run_command("relation-get", &arg_list, false));
     let relation = try!(String::from_utf8(output.stdout));
@@ -473,9 +500,36 @@ pub fn relation_list() ->Result<Vec<Relation>, JujuError>{
     return Ok(related_units);
 }
 
+
 pub fn relation_ids() ->Result<Vec<Relation>, JujuError>{
     let mut related_units: Vec<Relation> = Vec::new();
     let output = try!(run_command_no_args("relation-ids", false));
+    let output_str: String =  try!(String::from_utf8(output.stdout));
+    log(&format!("relation-ids output: {}", output_str), Some(LogLevel::Debug));
+
+    for line in output_str.lines(){
+        let v: Vec<&str> = line.split(':').collect();
+        let id: usize = try!(v[1].parse::<usize>());
+        let r: Relation = Relation{
+            name: v[0].to_string(),
+            id: id,
+        };
+        related_units.push(r);
+    }
+    return Ok(related_units);
+}
+
+/// Gets the relation IDs by their identifier
+/// # Failures
+/// Will return a String of the stderr if the call fails
+
+pub fn relation_ids_by_identifier(id: &str) ->Result<Vec<Relation>, JujuError>{
+    let mut related_units: Vec<Relation> = Vec::new();
+    let mut arg_list: Vec<String> = Vec::new();
+
+    arg_list.push(id.to_string());
+
+    let output = try!(run_command("relation-ids", &arg_list, false));
     let output_str: String =  try!(String::from_utf8(output.stdout));
     log(&format!("relation-ids output: {}", output_str), Some(LogLevel::Debug));
 
