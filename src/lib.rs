@@ -434,7 +434,7 @@ pub fn relation_set_by_id(key: &str, value: &str, id: &Relation) -> Result<Strin
     arg_list.push(format!("-r {}:{}", id.name , id.id.to_string()));
     arg_list.push(format!("{}={}",key, value).to_string());
 
-    let output = try!(run_command("relation-get", &arg_list, false));
+    let output = try!(run_command("relation-set", &arg_list, false));
     let relation = try!(String::from_utf8(output.stdout));
     return Ok(relation);
 }
@@ -469,10 +469,9 @@ pub fn relation_get_by_unit(key: &str, unit: &Relation) -> Result<String,JujuErr
 pub fn relation_get_by_id(key: &str, id: &Relation, unit: &Relation) -> Result<String,JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
 
-    arg_list.push(format!("-r {}:{} {} {}/{}",
-                          id.name , id.id.to_string(),
-                          key.to_string(),
-                          unit.name, unit.id.to_string()));
+    arg_list.push(format!("-r {}:{}", id.name , id.id.to_string()));
+    arg_list.push(format!("{}", key.to_string()));
+    arg_list.push(format!("{}/{}", unit.name, unit.id.to_string()));
 
     let output = try!(run_command("relation-get", &arg_list, false));
     let relation = try!(String::from_utf8(output.stdout));
