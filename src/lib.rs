@@ -53,6 +53,8 @@ use std::error::Error;
 use std::env;
 use std::io;
 
+pub mod macros;
+
 //Custom error handling for the library
 #[derive(Debug)]
 pub enum JujuError{
@@ -190,6 +192,7 @@ pub struct Relation {
     pub id: usize
 }
 
+#[derive(Debug,PartialEq)]
 pub struct Hook {
     /// The name of the hook to call
     pub name: String,
