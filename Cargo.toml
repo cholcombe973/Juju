@@ -2,10 +2,11 @@
 name = "juju"
 description = "A library to interact with the Juju system. For an example charm see: https://github.com/cholcombe973/gluster-charm"
 documentation = "https://cholcombe973.github.io/Juju/juju/index.html"
-version = "0.3.1"
+version = "0.5.1"
 authors = ["Chris Holcombe <xfactor973@gmail.com>"]
 repository = "https://github.com/cholcombe973/Juju"
 license = "MIT"
 
 [dependencies]
 charmhelpers = "~0.1"
+log = "~0.3"

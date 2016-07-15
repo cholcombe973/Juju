@@ -11,10 +11,12 @@
 //! # Examples
 //! ```
 //! extern crate juju;
+//! extern crate log;
 //! use std::env;
+//! use log::LogLevel;
 //!
 //! fn config_changed()->Result<(), String>{
-//!     juju::log(&"Hello Juju from Rust!".to_string());
+//!     juju::log("Hello Juju from Rust!", Some(LogLevel::Debug));
 //!     return Ok(());
 //! }
 //!
@@ -29,9 +31,9 @@
 //!     let result =  juju::process_hooks(hook_registry);
 //!
 //!     if result.is_err(){
-//!         juju::log(&format!("Hook failed with error: {:?}", result.err()));
+//!         juju::log(&format!("Hook failed with error: {:?}", result.err()), Some(LogLevel::Error));
 //!     }else{
-//!         juju::log(&"Hook call was successful!".to_string());
+//!         juju::log("Hook call was successful!", Some(LogLevel::Debug));
 //!     }
 //! }
 //! ```
@@ -47,11 +49,18 @@
 //!
 
 extern crate charmhelpers;
+extern crate log;
 
 use std::collections::HashMap;
-use std::error::Error;
 use std::env;
+use std::error::Error;
+use std::str::FromStr;
+use std::net::IpAddr;
 use std::io;
+
+use log::LogLevel;
+
+pub use charmhelpers::core::hookenv::{log};
 
 pub mod macros;
 
@@ -61,6 +70,8 @@ pub enum JujuError{
     IoError(io::Error),
     FromUtf8Error(std::string::FromUtf8Error),
     ParseIntError(std::num::ParseIntError),
+    VarError(std::env::VarError),
+    AddrParseError(std::net::AddrParseError),
 }
 
 impl JujuError{
@@ -75,6 +86,8 @@ impl JujuError{
             JujuError::IoError(ref err) => err.description().to_string(),
             JujuError::FromUtf8Error(ref err) => err.description().to_string(),
             JujuError::ParseIntError(ref err) => err.description().to_string(),
+            JujuError::VarError(ref err) => err.description().to_string(),
+            JujuError::AddrParseError(ref err) => err.description().to_string(),
         }
     }
 }
@@ -94,6 +107,18 @@ impl From<std::string::FromUtf8Error> for JujuError {
 impl From<std::num::ParseIntError> for JujuError {
     fn from(err: std::num::ParseIntError) -> JujuError {
         JujuError::ParseIntError(err)
+    }
+}
+
+impl From<std::env::VarError> for JujuError {
+    fn from(err: std::env::VarError) -> JujuError {
+        JujuError::VarError(err)
+    }
+}
+
+impl From<std::net::AddrParseError> for JujuError {
+    fn from(err: std::net::AddrParseError) -> JujuError {
+        JujuError::AddrParseError(err)
     }
 }
 
@@ -218,25 +243,6 @@ fn process_output(output: std::process::Output)->Result<i32, JujuError>{
     }
 }
 
-/// Logs the msg passed to it
-/// # Examples
-/// ```
-/// extern crate juju;
-/// let error = "Error information";
-/// juju::log(&format!("Super important info. Error {}", error));
-/// ```
-/// # Failures
-/// Does not return anything on failure.  Java has the same semantics.  I'm still wondering
-/// if this is the right thing to do.
-pub fn log(msg: &String){
-    let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push(msg.clone());
-
-    //Ignoring errors if they happen.
-    //TODO: should this return success/failure?  It makes the code ugly
-    run_command("juju-log", &arg_list, false).is_ok();
-}
-
 /// This will reboot your juju instance.  Examples of using this are when a new kernel is installed
 /// and the virtual machine or server needs to be rebooted to use it.
 /// # Failures
@@ -250,22 +256,46 @@ pub fn reboot()->Result<i32,JujuError>{
 /// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
 /// # Failures
 /// Returns stderr if the action_get command fails
-pub fn action_get(key: &String) -> Result<String,JujuError>{
+pub fn action_get(key: &str) -> Result<String,JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
-    arg_list.push(key.clone());
+    arg_list.push(key.to_string());
 
     let output = try!(run_command("action-get", &arg_list, false));
     let value = try!(String::from_utf8(output.stdout));
     return Ok(value.trim().to_string());
 }
 
+/// Get the name of the currently executing action
+/// # Failures
+/// Returns JujuError if the environment variable JUJU_ACTION_NAME does not exist
+pub fn action_name() -> Result<String,JujuError>{
+    let name = try!(env::var("JUJU_ACTION_NAME"));
+    return Ok(name);
+}
+
+/// Get the uuid of the currently executing action
+/// # Failures
+/// Returns JujuError if the environment variable JUJU_ACTION_UUID does not exist
+pub fn action_uuid() -> Result<String,JujuError>{
+    let uuid = try!(env::var("JUJU_ACTION_UUID"));
+    return Ok(uuid);
+}
+
+/// Get the tag of the currently executing action
+/// # Failures
+/// Returns JujuError if the environment variable JUJU_ACTION_TAG does not exist
+pub fn action_tag() -> Result<String,JujuError>{
+    let tag = try!(env::var("JUJU_ACTION_TAG"));
+    return Ok(tag);
+}
+
 /// action_set permits the Action to set results in a map to be returned at completion of the Action.
 /// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
 /// # Failures
 /// Returns stderr if the action_set command fails
-pub fn action_set(key: &String, value: &String) -> Result<i32,JujuError>{
+pub fn action_set(key: &str, value: &str) -> Result<i32,JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
-    arg_list.push(format!("{}={}", key.clone(), value.clone()));
+    arg_list.push(format!("{}={}", key, value));
 
     let output = try!(run_command("action-set", &arg_list, false));
     return process_output(output);
@@ -274,9 +304,9 @@ pub fn action_set(key: &String, value: &String) -> Result<i32,JujuError>{
 /// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
 /// # Failures
 /// Returns stderr if the action_fail command fails
-pub fn action_fail(msg: &String) -> Result<i32, JujuError>{
+pub fn action_fail(msg: &str) -> Result<i32, JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
-    arg_list.push(msg.clone());
+    arg_list.push(msg.to_string());
 
     let output = try!(run_command("action-fail", &arg_list, false));
     return process_output(output);
@@ -285,29 +315,37 @@ pub fn action_fail(msg: &String) -> Result<i32, JujuError>{
 /// This will return the private IP address associated with the unit.
 /// It can be very useful for services that require communicating with the other units related
 /// to it.
-pub fn unit_get_private_addr() ->Result<String, JujuError>{
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn unit_get_private_addr() ->Result<IpAddr, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push("private-address".to_string());
 
     let output = try!(run_command("unit-get", &arg_list, false));
     let private_addr: String = try!(String::from_utf8(output.stdout));
-    return Ok(private_addr.trim().to_string());
+    let ip = try!(IpAddr::from_str(private_addr.trim()));
+    return Ok(ip);
 }
 
 /// This will return the public IP address associated with the unit.
-pub fn unit_get_public_addr() ->Result<String, JujuError>{
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn unit_get_public_addr() ->Result<IpAddr, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     arg_list.push("public-address".to_string());
 
     let output = try!(run_command("unit-get", &arg_list, false));
     let public_addr = try!(String::from_utf8(output.stdout));
-    return Ok(public_addr.trim().to_string());
+    let ip = try!(IpAddr::from_str(public_addr.trim()));
+    return Ok(ip);
 }
 
 /// This will return a configuration item that corresponds to the key passed in
-pub fn config_get(key: &String) ->Result<String, JujuError>{
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn config_get(key: &str) ->Result<String, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push(key.clone());
+    arg_list.push(key.to_string());
 
     let output = try!(run_command("config-get", &arg_list, false));
     let value = try!(String::from_utf8(output.stdout));
@@ -355,6 +393,8 @@ pub fn config_get_all() -> Result<HashMap<String,String>, JujuError>{
 
 /// This will expose a port on the unit.  The transport argument will indicate whether tcp or udp
 /// should be exposed
+/// # Failures
+/// Will return a String of the stderr if the call fails
 pub fn open_port(port: usize, transport: Transport)->Result<i32, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     let port_string = format!("{}/{}", port.to_string(), transport.to_string());
@@ -366,6 +406,8 @@ pub fn open_port(port: usize, transport: Transport)->Result<i32, JujuError>{
 
 /// This will hide a port on the unit.  The transport argument will indicate whether tcp or udp
 /// should be exposed
+/// # Failures
+/// Will return a String of the stderr if the call fails
 pub fn close_port(port: usize, transport: Transport)->Result<i32, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     let port_string = format!("{}/{}", port.to_string() , transport.to_string());
@@ -375,6 +417,9 @@ pub fn close_port(port: usize, transport: Transport)->Result<i32, JujuError>{
     return process_output(output);
 }
 
+/// Set relation information for the current unit
+/// # Failures
+/// Will return a String of the stderr if the call fails
 pub fn relation_set(key: &str, value: &str)->Result<i32, JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
     let arg = format!("{}={}", key.clone(), value);
@@ -383,19 +428,53 @@ pub fn relation_set(key: &str, value: &str)->Result<i32, JujuError>{
     let output = try!(run_command("relation-set", &arg_list, false));
     return process_output(output);
 }
+/// Sets relation information using a specific relation ID. Used outside of relation hooks
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn relation_set_by_id(key: &str, value: &str, id: &Relation) -> Result<String,JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
 
-pub fn relation_get(key: &String) -> Result<String,JujuError>{
+    arg_list.push(format!("-r {}:{}", id.name , id.id.to_string()));
+    arg_list.push(format!("{}={}",key, value).to_string());
+
+    let output = try!(run_command("relation-set", &arg_list, false));
+    let relation = try!(String::from_utf8(output.stdout));
+    return Ok(relation);
+}
+
+/// Get relation information for the current unit
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn relation_get(key: &str) -> Result<String,JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push(key.clone());
+    arg_list.push(key.to_string());
     let output = try!(run_command("relation-get", &arg_list, false));
     let value = try!(String::from_utf8(output.stdout));
     return Ok(value);
 }
 
-pub fn relation_get_by_unit(key: &String, unit: &Relation) -> Result<String,JujuError>{
+/// Get relation information for a specific unit
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn relation_get_by_unit(key: &str, unit: &Relation) -> Result<String,JujuError>{
     let mut arg_list: Vec<String>  = Vec::new();
-    arg_list.push(key.clone());
+    arg_list.push(key.to_string());
     arg_list.push(format!("{}/{}", unit.name , unit.id.to_string()));
+
+    let output = try!(run_command("relation-get", &arg_list, false));
+    let relation = try!(String::from_utf8(output.stdout));
+    return Ok(relation);
+}
+
+/// Get relation information using a specific relation ID. Used outside of relation hooks
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn relation_get_by_id(key: &str, id: &Relation, unit: &Relation) -> Result<String,JujuError>{
+    let mut arg_list: Vec<String> = Vec::new();
+
+    arg_list.push(format!("-r {}:{}", id.name , id.id.to_string()));
+    arg_list.push(format!("{}", key.to_string()));
+    arg_list.push(format!("{}/{}", unit.name, unit.id.to_string()));
 
     let output = try!(run_command("relation-get", &arg_list, false));
     let relation = try!(String::from_utf8(output.stdout));
@@ -405,14 +484,39 @@ pub fn relation_get_by_unit(key: &String, unit: &Relation) -> Result<String,Juju
 /// Returns a list of all related units
 /// # Failures
 /// Will return a String of the stderr if the call fails
-
 pub fn relation_list() ->Result<Vec<Relation>, JujuError>{
     let mut related_units: Vec<Relation> = Vec::new();
 
     let output = try!(run_command_no_args("relation-list", false));
     let output_str =  try!(String::from_utf8(output.stdout));
 
-    log(&format!("relation-list output: {}", output_str));
+    log(&format!("relation-list output: {}", output_str), Some(LogLevel::Debug));
+
+    for line in output_str.lines(){
+        let v: Vec<&str> = line.split('/').collect();
+        let id: usize = try!(v[1].parse::<usize>());
+        let r: Relation = Relation{
+            name: v[0].to_string(),
+            id: id,
+        };
+        related_units.push(r);
+    }
+    return Ok(related_units);
+}
+
+/// Returns a list of all related units for the supplied identifier
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn relation_list_by_id(id: &Relation) ->Result<Vec<Relation>, JujuError>{
+    let mut related_units: Vec<Relation> = Vec::new();
+    let mut arg_list: Vec<String> = Vec::new();
+
+    arg_list.push(format!("-r {}:{}", id.name, id.id.to_string()));
+
+    let output = try!(run_command("relation-list", &arg_list, false));
+    let output_str =  try!(String::from_utf8(output.stdout));
+
+    log(&format!("relation-list output: {}", output_str), Some(LogLevel::Debug));
 
     for line in output_str.lines(){
         let v: Vec<&str> = line.split('/').collect();
@@ -430,7 +534,33 @@ pub fn relation_ids() ->Result<Vec<Relation>, JujuError>{
     let mut related_units: Vec<Relation> = Vec::new();
     let output = try!(run_command_no_args("relation-ids", false));
     let output_str: String =  try!(String::from_utf8(output.stdout));
-    log(&format!("relation-ids output: {}", output_str));
+    log(&format!("relation-ids output: {}", output_str), Some(LogLevel::Debug));
+
+    for line in output_str.lines(){
+        let v: Vec<&str> = line.split(':').collect();
+        let id: usize = try!(v[1].parse::<usize>());
+        let r: Relation = Relation{
+            name: v[0].to_string(),
+            id: id,
+        };
+        related_units.push(r);
+    }
+    return Ok(related_units);
+}
+
+/// Gets the relation IDs by their identifier
+/// # Failures
+/// Will return a String of the stderr if the call fails
+
+pub fn relation_ids_by_identifier(id: &str) -> Result<Vec<Relation>, JujuError>{
+    let mut related_units: Vec<Relation> = Vec::new();
+    let mut arg_list: Vec<String> = Vec::new();
+
+    arg_list.push(id.to_string());
+
+    let output = try!(run_command("relation-ids", &arg_list, false));
+    let output_str: String =  try!(String::from_utf8(output.stdout));
+    log(&format!("relation-ids output: {}", output_str), Some(LogLevel::Debug));
 
     for line in output_str.lines(){
         let v: Vec<&str> = line.split(':').collect();
@@ -446,6 +576,8 @@ pub fn relation_ids() ->Result<Vec<Relation>, JujuError>{
 
 /// Set the status of your unit to indicate to the Juju if everything is ok or something is wrong.
 /// See the Status enum for information about what can be set.
+/// # Failures
+/// Will return a String of the stderr if the call fails
 pub fn status_set(status: Status)->Result<i32,JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
     arg_list.push(status.status_type.to_string());
@@ -455,9 +587,19 @@ pub fn status_set(status: Status)->Result<i32,JujuError>{
     return process_output(output);
 }
 
+/// Retrieve the previously set juju workload state
+/// # Failures
+/// Will return a String of the stderr if the call fails
+pub fn status_get()->Result<String,JujuError>{
+    let output = try!(run_command_no_args("status-get", false));
+    return Ok(try!(String::from_utf8(output.stdout)));
+}
+
 /// If storage drives were allocated to your unit this will get the path of them.
 /// In the storage-attaching hook this will tell you the location where the storage
 /// is attached to.  IE: /dev/xvdf for block devices or /mnt/{name} for filesystem devices
+/// # Failures
+/// Will return a String of the stderr if the call fails
 pub fn storage_get_location() ->Result<String, JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
     arg_list.push("location".to_string());
@@ -468,6 +610,8 @@ pub fn storage_get_location() ->Result<String, JujuError>{
 /// Return the location of the mounted storage device.  The mounted
 /// storage devices can be gotten by calling storage_list() and
 /// then passed into this function to get their mount location.
+/// # Failures
+/// Will return a String of the stderr if the call fails
 pub fn storage_get(name: &str) ->Result<String, JujuError>{
     let mut arg_list: Vec<String> = Vec::new();
     arg_list.push("-s".to_string());
@@ -479,6 +623,8 @@ pub fn storage_get(name: &str) ->Result<String, JujuError>{
 
 /// Used to list storage instances that are attached to the unit.
 /// The names returned may be passed through to storage_get
+/// # Failures
+/// Will return a String of the stderr if the call fails
 pub fn storage_list() ->Result<String, JujuError>{
     let output = try!(run_command_no_args("storage-list", false));
     return Ok(try!(String::from_utf8(output.stdout)));
@@ -488,6 +634,7 @@ pub fn storage_list() ->Result<String, JujuError>{
 /// # Examples
 /// ```
 ///     extern crate juju;
+///     extern crate log;
 ///     use std::env;
 ///
 ///     fn config_changed()->Result<(), String>{
@@ -503,9 +650,9 @@ pub fn storage_list() ->Result<String, JujuError>{
 ///         callback: config_changed,
 ///     });
 ///     let result =  juju::process_hooks(hook_registry);
-
+///
 ///     if result.is_err(){
-///         juju::log(&format!("Hook failed with error: {:?}", result.err()));
+///         juju::log(&format!("Hook failed with error: {:?}", result.err()), Some(log::LogLevel::Error));
 ///     }
 /// ```
 ///
