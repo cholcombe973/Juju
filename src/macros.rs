@@ -38,8 +38,9 @@ mod tests{
             let _ = status_set!(Maintenance "Doing stuff");
         }
     }
+    
     use super::super::Hook;
-    fn cb() -> Result<(),String> {
+    fn cb() -> Result<(), String> {
         Ok(())
     }
     #[test]
