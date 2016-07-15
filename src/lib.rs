@@ -22,10 +22,9 @@
 //! }
 //!
 //! fn main(){
-//!     let mut hook_registry: Vec<juju::Hook> = Vec::new();
-//!
-//!     //Register our hooks with the Juju library
-//!     hook_registry.push(hook!("config-changed", config_changed));
+//!     let mut hook_registry: Vec<juju::Hook> = vec![
+//!         hook!("config-changed", config_changed)
+//!     ];
 //!     let result =  juju::process_hooks(hook_registry);
 //!
 //!     if result.is_err(){
