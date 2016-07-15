@@ -19,9 +19,9 @@ macro_rules! hook {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::super::Hook;
-    fn cb() -> Result<(),String> {
+    fn cb() -> Result<(), String> {
         Ok(())
     }
     #[test]
