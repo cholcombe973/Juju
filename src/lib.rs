@@ -62,6 +62,8 @@ use log::LogLevel;
 
 pub use charmhelpers::core::hookenv::{log};
 
+pub mod macros;
+
 //Custom error handling for the library
 #[derive(Debug)]
 pub enum JujuError{
@@ -215,6 +217,7 @@ pub struct Relation {
     pub id: usize
 }
 
+#[derive(Debug,PartialEq)]
 pub struct Hook {
     /// The name of the hook to call
     pub name: String,
