@@ -18,8 +18,30 @@ macro_rules! hook {
     };
 }
 
+///
+/// A Macro to set Juju's status
+///
+#[macro_export]
+macro_rules! status_set {
+    ($status_type:ident $message:expr) => {{
+        let _ = $crate::status_set(
+            $crate::Status {
+                status_type: $crate::StatusType::$status_type,
+                message: $message.to_string()
+            }
+        );
+    }}
+}
+
 #[cfg(test)]
-mod tests {
+mod tests{
+    #[allow(dead_code)]
+    mod status_set {
+        fn it_compiles_correctly() {
+            status_set!(Maintenance "Doing stuff");
+        }
+    }
+
     use super::super::Hook;
     fn cb() -> Result<(), String> {
         Ok(())
