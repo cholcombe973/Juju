@@ -252,6 +252,24 @@ pub fn reboot() -> Result<i32, JujuError> {
     return process_output(output);
 }
 
+/// action_get_all gets all values that are set
+/// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
+/// # Failures
+/// Returns stderr if the action_get command fails
+pub fn action_get_all() -> Result<HashMap<String, String>, JujuError> {
+    let output = try!(run_command_no_args("action-get", false));
+    let values = try!(String::from_utf8(output.stdout));
+    let mut map: HashMap<String, String> = HashMap::new();
+
+    for line in values.lines() {
+        let parts: Vec<&str> = line.split(":").collect();
+        if parts.len() == 2 {
+            map.insert(parts[0].to_string(), parts[1].to_string());
+        }
+    }
+    return Ok(map);
+}
+
 /// action_get gets the value of the parameter at the given key
 /// See [Juju Actions](https://jujucharms.com/docs/devel/authors-charm-actions) for more information
 /// # Failures
