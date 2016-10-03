@@ -264,7 +264,7 @@ pub fn action_get_all() -> Result<HashMap<String, String>, JujuError> {
     for line in values.lines() {
         let parts: Vec<&str> = line.split(":").collect();
         if parts.len() == 2 {
-            map.insert(parts[0].to_string(), parts[1].to_string());
+            map.insert(parts[0].to_string(), parts[1].trim().to_string());
         }
     }
     return Ok(map);
