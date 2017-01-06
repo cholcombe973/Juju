@@ -53,9 +53,10 @@ extern crate log;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
-use std::str::FromStr;
-use std::net::IpAddr;
+use std::fmt;
 use std::io;
+use std::net::IpAddr;
+use std::str::FromStr;
 
 use log::LogLevel;
 
@@ -88,6 +89,33 @@ impl JujuError {
         }
     }
 }
+impl fmt::Display for JujuError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.description())
+    }
+}
+
+impl Error for JujuError {
+    fn description(&self) -> &str {
+        match *self {
+            JujuError::IoError(ref err) => err.description(),
+            JujuError::FromUtf8Error(ref err) => err.description(),
+            JujuError::ParseIntError(ref err) => err.description(),
+            JujuError::VarError(ref err) => err.description(),
+            JujuError::AddrParseError(ref err) => err.description(),
+        }
+    }
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            JujuError::IoError(ref err) => err.cause(),
+            JujuError::FromUtf8Error(ref err) => err.cause(),
+            JujuError::ParseIntError(ref err) => err.cause(),
+            JujuError::VarError(ref err) => err.cause(),
+            JujuError::AddrParseError(ref err) => err.cause(),
+        }
+    }
+}
+
 
 impl From<io::Error> for JujuError {
     fn from(err: io::Error) -> JujuError {
@@ -249,6 +277,18 @@ fn process_output(output: std::process::Output) -> Result<i32, JujuError> {
 /// Returns stderr if the reboot command fails
 pub fn reboot() -> Result<i32, JujuError> {
     let output = try!(run_command_no_args("juju-reboot", true));
+    return process_output(output);
+}
+/// Charm authors may trigger this command from any hook to output what
+/// version of the application is running. This could be a package version,
+/// for instance postgres version 9.5. It could also be a build number or
+/// version control revision identifier, for instance git sha 6fb7ba68.
+/// # Failures
+/// Returns stderr if the action_get command fails
+pub fn application_version_set(version: &str) -> Result<i32, JujuError> {
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push(version.to_string());
+    let output = try!(run_command("application-version-set", &arg_list, false));
     return process_output(output);
 }
 
