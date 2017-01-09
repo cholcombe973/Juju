@@ -10,3 +10,4 @@ license = "MIT"
 [dependencies]
 charmhelpers = "~0.1"
 log = "~0.3"
+serde_json = "~0.8"

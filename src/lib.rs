@@ -49,13 +49,17 @@
 
 extern crate charmhelpers;
 extern crate log;
+extern crate serde_json;
 
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
+use std::fs::OpenOptions;
 use std::fmt;
 use std::io;
+use std::io::prelude::*;
 use std::net::IpAddr;
+use std::path::Path;
 use std::str::FromStr;
 
 use log::LogLevel;
@@ -67,11 +71,12 @@ pub mod macros;
 // Custom error handling for the library
 #[derive(Debug)]
 pub enum JujuError {
-    IoError(io::Error),
-    FromUtf8Error(std::string::FromUtf8Error),
-    ParseIntError(std::num::ParseIntError),
-    VarError(std::env::VarError),
     AddrParseError(std::net::AddrParseError),
+    FromUtf8Error(std::string::FromUtf8Error),
+    IoError(io::Error),
+    ParseIntError(std::num::ParseIntError),
+    SerdeError(serde_json::Error),
+    VarError(std::env::VarError),
 }
 
 impl JujuError {
@@ -81,11 +86,12 @@ impl JujuError {
 
     pub fn to_string(&self) -> String {
         match *self {
-            JujuError::IoError(ref err) => err.description().to_string(),
-            JujuError::FromUtf8Error(ref err) => err.description().to_string(),
-            JujuError::ParseIntError(ref err) => err.description().to_string(),
-            JujuError::VarError(ref err) => err.description().to_string(),
             JujuError::AddrParseError(ref err) => err.description().to_string(),
+            JujuError::FromUtf8Error(ref err) => err.description().to_string(),
+            JujuError::IoError(ref err) => err.description().to_string(),
+            JujuError::ParseIntError(ref err) => err.description().to_string(),
+            JujuError::SerdeError(ref err) => err.description().to_string(),
+            JujuError::VarError(ref err) => err.description().to_string(),
         }
     }
 }
@@ -98,20 +104,22 @@ impl fmt::Display for JujuError {
 impl Error for JujuError {
     fn description(&self) -> &str {
         match *self {
-            JujuError::IoError(ref err) => err.description(),
-            JujuError::FromUtf8Error(ref err) => err.description(),
-            JujuError::ParseIntError(ref err) => err.description(),
-            JujuError::VarError(ref err) => err.description(),
             JujuError::AddrParseError(ref err) => err.description(),
+            JujuError::FromUtf8Error(ref err) => err.description(),
+            JujuError::IoError(ref err) => err.description(),
+            JujuError::ParseIntError(ref err) => err.description(),
+            JujuError::SerdeError(ref err) => err.description(),
+            JujuError::VarError(ref err) => err.description(),
         }
     }
     fn cause(&self) -> Option<&Error> {
         match *self {
-            JujuError::IoError(ref err) => err.cause(),
-            JujuError::FromUtf8Error(ref err) => err.cause(),
-            JujuError::ParseIntError(ref err) => err.cause(),
-            JujuError::VarError(ref err) => err.cause(),
             JujuError::AddrParseError(ref err) => err.cause(),
+            JujuError::FromUtf8Error(ref err) => err.cause(),
+            JujuError::IoError(ref err) => err.cause(),
+            JujuError::ParseIntError(ref err) => err.cause(),
+            JujuError::SerdeError(ref err) => err.cause(),
+            JujuError::VarError(ref err) => err.cause(),
         }
     }
 }
@@ -138,6 +146,12 @@ impl From<std::num::ParseIntError> for JujuError {
 impl From<std::env::VarError> for JujuError {
     fn from(err: std::env::VarError) -> JujuError {
         JujuError::VarError(err)
+    }
+}
+
+impl From<serde_json::Error> for JujuError {
+    fn from(err: serde_json::Error) -> JujuError {
+        JujuError::SerdeError(err)
     }
 }
 
@@ -235,6 +249,98 @@ impl Context {
             relation_id: relation_id,
             unit: unit,
             relations: relations,
+        }
+    }
+}
+
+/// A HashMap representation of the charm's config.yaml, with some
+/// extra features:
+/// - See which values in the HashMap have changed since the previous hook.
+/// - For values that have changed, see what the previous value was.
+/// - Store arbitrary data for use in a later hook.
+#[derive(Debug)]
+pub struct Config {
+    values: HashMap<String, String>,
+}
+
+impl Config {
+    /// Create a new Config and automatically load the previous config values if the
+    /// .juju-persistent-config is present
+    /// The .juju-persistent-config is also saved automatically when this struct is dropped.
+    pub fn new() -> Result<Self, JujuError> {
+        if Path::new(".juju-persistent-config").exists() {
+            // Load the values from disk
+            let mut file = try!(OpenOptions::new()
+                .read(true)
+                .open(".juju-persistent-config"));
+            let mut s = String::new();
+            try!(file.read_to_string(&mut s));
+            let previous_values: HashMap<String, String> = try!(serde_json::from_str(&s));
+            Ok(Config { values: previous_values })
+        } else {
+            // Initalize with a blank values map
+            Ok(Config { values: HashMap::new() })
+        }
+    }
+
+    /// Return true if the current value for this key is different from
+    /// the previous value.
+    pub fn changed(self, key: &str) -> Result<bool, JujuError> {
+        match self.values.get(key) {
+            Some(previous_value) => {
+                let current_value = try!(config_get(key));
+                Ok(&current_value != previous_value)
+            }
+            // No previous key
+            None => Ok(true),
+        }
+    }
+
+    /// Return previous value for this key, or None if there
+    /// is no previous value.
+    pub fn previous(self, key: &str) -> Option<String> {
+        match self.values.get(key) {
+            Some(previous_value) => Some(previous_value.clone()),
+            None => None,
+        }
+    }
+}
+
+impl Drop for Config {
+    // Automatic saving of the .juju-persistent-config file when this struct is dropped
+    fn drop(&mut self) {
+        let mut file =
+            match OpenOptions::new().write(true).truncate(true).open(".juju-persistent-config") {
+                Ok(f) => f,
+                Err(e) => {
+                    log(&format!("Unable to open .juju-persistent-config file for writing. Err: \
+                                  {}",
+                                 e),
+                        Some(LogLevel::Error));
+                    return;
+                }
+            };
+        let serialized = match serde_json::to_string(&self.values) {
+            Ok(f) => f,
+            Err(e) => {
+                log(&format!("Unable to serialize Config values: {:?}.  Err: {}",
+                             &self.values,
+                             e),
+                    Some(LogLevel::Error));
+                return;
+            }
+        };
+        match file.write(&serialized.as_bytes()) {
+            Ok(bytes_written) => {
+                log(&format!(".juju-persistent-config saved.  Wrote {} bytes",
+                             bytes_written),
+                    Some(LogLevel::Debug));
+            }
+            Err(e) => {
+                log(&format!("Unable to write to .juju-persistent-config Err: {}", e),
+                    Some(LogLevel::Error));
+                return;
+            }
         }
     }
 }
