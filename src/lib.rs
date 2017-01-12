@@ -49,6 +49,7 @@
 
 extern crate charmhelpers;
 extern crate log;
+extern crate memchr;
 extern crate serde_json;
 
 use std::collections::HashMap;
@@ -63,6 +64,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use log::LogLevel;
+use memchr::memchr;
 
 pub use charmhelpers::core::hookenv::log;
 
@@ -278,9 +280,16 @@ impl Config {
             let previous_values: HashMap<String, String> = try!(serde_json::from_str(&s));
             Ok(Config { values: previous_values })
         } else {
-            // Initalize with a blank values map
-            Ok(Config { values: HashMap::new() })
+            // Initalize with all current values
+            let current_values = config_get_all()?;
+            Ok(Config { values: current_values })
         }
+    }
+
+    /// Return the current value for this key
+    pub fn get(self, key: &str) -> Result<String, JujuError> {
+        let current_value = try!(config_get(key));
+        Ok(current_value)
     }
 
     /// Return true if the current value for this key is different from
@@ -309,17 +318,19 @@ impl Config {
 impl Drop for Config {
     // Automatic saving of the .juju-persistent-config file when this struct is dropped
     fn drop(&mut self) {
-        let mut file =
-            match OpenOptions::new().write(true).truncate(true).open(".juju-persistent-config") {
-                Ok(f) => f,
-                Err(e) => {
-                    log(&format!("Unable to open .juju-persistent-config file for writing. Err: \
-                                  {}",
-                                 e),
-                        Some(LogLevel::Error));
-                    return;
-                }
-            };
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(".juju-persistent-config") {
+            Ok(f) => f,
+            Err(e) => {
+                log(&format!("Unable to open .juju-persistent-config file for writing. Err: {}",
+                             e),
+                    Some(LogLevel::Error));
+                return;
+            }
+        };
         let serialized = match serde_json::to_string(&self.values) {
             Ok(f) => f,
             Err(e) => {
@@ -533,28 +544,11 @@ pub fn config_get_all() -> Result<HashMap<String, String>, JujuError> {
     //
     // For each line split at : and load the parts into the HashMap
     for line in output_str.lines() {
-        let parts: Vec<&str> = line.split(":").filter(|s| !s.is_empty()).collect::<Vec<&str>>();
-        if !parts.len() == 2 {
-            // Skipping this possibly bogus value
-            continue;
+        if let Some(position) = memchr(b':', &line.as_bytes()) {
+            values.insert(line[0..position].trim().to_string(),
+                          line[position + 1..].trim().to_string());
         }
-        let key = match parts.get(0) {
-            Some(key) => key,
-            None => {
-                return Err(JujuError::new(format!("Unable to get key from config-get from \
-                                                   parts: {:?}",
-                                                  parts)));
-            }
-        };
-        let value = match parts.get(1) {
-            Some(value) => value,
-            None => {
-                return Err(JujuError::new(format!("Unable to get value from config-get from \
-                                                   parts: {:?}",
-                                                  parts)));
-            }
-        };
-        values.insert(key.to_string(), value.to_string());
+        // Skip blank lines or failed splits
     }
 
     return Ok(values);
