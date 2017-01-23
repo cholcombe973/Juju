@@ -34,7 +34,7 @@ macro_rules! status_set {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     #[allow(dead_code)]
     mod status_set {
         fn it_compiles_correctly() {

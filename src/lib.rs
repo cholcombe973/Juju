@@ -838,6 +838,34 @@ pub fn process_hooks(registry: Vec<Hook>) -> Result<(), String> {
     return Err(format!("Warning: Unknown callback for hook {}", hook_name));
 }
 
+/// Juju leader get value(s)
+/// # Failures
+/// Will return stderr as a String if the function fails to run
+pub fn leader_get(attribute: Option<String>) -> Result<String, JujuError> {
+    let arg_list: Vec<String>;
+    match attribute {
+        Some(a) => arg_list = vec![a],
+        None => arg_list = vec!['-'.to_string()],
+    };
+    let output = try!(run_command("leader-get", &arg_list, false));
+    let value = String::from_utf8(output.stdout)?;
+    return Ok(value.trim().to_string());
+}
+
+
+/// Juju leader set value(s)
+/// # Failures
+/// Will return stderr as a String if the function fails to run
+pub fn leader_set(settings: HashMap<String, String>) -> Result<i32, JujuError> {
+    let mut arg_list: Vec<String> = Vec::new();
+    for (key, value) in settings {
+        arg_list.push(format!("{}={}", key, value));
+    }
+
+    let output = try!(run_command("leader-set", &arg_list, false));
+    return process_output(output);
+}
+
 /// Returns true/false if this unit is the leader
 /// # Failures
 /// Will return stderr as a String if the function fails to run
