@@ -404,7 +404,7 @@ pub fn add_metric(key: &str, value: &str) -> Result<i32, JujuError> {
 
 /// Get the meter status, if running in the meter-status-changed hook
 /// # Failures
-/// Returns stderr if the add_metric command fails
+/// Returns stderr if the meter_status command fails
 pub fn meter_status() -> Result<String, JujuError> {
     let status = try!(env::var("JUJU_METER_STATUS"));
     return Ok(status);
@@ -413,7 +413,7 @@ pub fn meter_status() -> Result<String, JujuError> {
 
 /// Get the meter status information, if running in the meter-status-changed hook
 /// # Failures
-/// Returns stderr if the add_metric command fails
+/// Returns stderr if the meter_info command fails
 pub fn meter_info() -> Result<String, JujuError> {
     let info = try!(env::var("JUJU_METER_INFO"));
     return Ok(info);
