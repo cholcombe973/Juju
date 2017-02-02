@@ -388,6 +388,37 @@ fn process_output(output: std::process::Output) -> Result<i32, JujuError> {
     }
 }
 
+/// Add metric values
+/// See [Juju Metrics](https://jujucharms.com/docs/2.0/developer-metrics) for more
+/// information
+/// May only be called from the collect-metrics hook
+/// # Failures
+/// Returns stderr if the add_metric command fails
+pub fn add_metric(key: &str, value: &str) -> Result<i32, JujuError> {
+    let mut arg_list: Vec<String> = Vec::new();
+    arg_list.push(format!("{}={}", key, value));
+
+    let output = try!(run_command("add-metric", &arg_list, false));
+    return process_output(output);
+}
+
+/// Get the meter status, if running in the meter-status-changed hook
+/// # Failures
+/// Returns stderr if the add_metric command fails
+pub fn meter_status() -> Result<String, JujuError> {
+    let status = try!(env::var("JUJU_METER_STATUS"));
+    return Ok(status);
+}
+
+
+/// Get the meter status information, if running in the meter-status-changed hook
+/// # Failures
+/// Returns stderr if the add_metric command fails
+pub fn meter_info() -> Result<String, JujuError> {
+    let info = try!(env::var("JUJU_METER_INFO"));
+    return Ok(info);
+}
+
 /// This will reboot your juju instance.  Examples of using this are when a new kernel is installed
 /// and the virtual machine or server needs to be rebooted to use it.
 /// # Failures
