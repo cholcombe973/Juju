@@ -402,6 +402,14 @@ pub fn add_metric(key: &str, value: &str) -> Result<i32, JujuError> {
     return process_output(output);
 }
 
+/// Get the availability zone
+/// # Failures
+/// Returns stderr if the meter_status command fails
+pub fn az_info() -> Result<String, JujuError> {
+    let az = try!(env::var("JUJU_AVAILABILITY_ZONE"));
+    return Ok(az);
+}
+
 /// Get the meter status, if running in the meter-status-changed hook
 /// # Failures
 /// Returns stderr if the meter_status command fails
