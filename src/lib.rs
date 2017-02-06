@@ -63,7 +63,7 @@ use std::net::IpAddr;
 use std::path::Path;
 use std::str::FromStr;
 
-use log::LogLevel;
+pub use log::LogLevel;
 use memchr::memchr;
 
 pub use charmhelpers::core::hookenv::log;

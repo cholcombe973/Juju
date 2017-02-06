@@ -26,7 +26,7 @@ macro_rules! log {
     ($message:expr, $level:ident) => {{
          $crate::log(
             $message.to_string(),
-            Some(LogLevel::$level),
+            Some($crate::LogLevel::$level),
         );
     }}
 }
@@ -57,8 +57,6 @@ mod tests {
 
     #[allow(dead_code)]
     mod log {
-        use charmhelpers;
-        use log::LogLevel;
         fn it_logs_default() {
             log!("This is a test");
         }
