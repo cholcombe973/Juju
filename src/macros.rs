@@ -18,6 +18,19 @@ macro_rules! hook {
     };
 }
 
+#[macro_export]
+macro_rules! log {
+    ($message:expr) => {{
+        log!($message, Debug)
+    }};
+    ($message:expr, $level:ident) => {{
+         $crate::log(
+            $message.to_string(),
+            Some(LogLevel::$level),
+        );
+    }}
+}
+
 ///
 /// A Macro to set Juju's status
 ///
@@ -39,6 +52,19 @@ mod tests {
     mod status_set {
         fn it_compiles_correctly() {
             status_set!(Maintenance "Doing stuff");
+        }
+    }
+
+    #[allow(dead_code)]
+    mod log {
+        use charmhelpers;
+        use log::LogLevel;
+        fn it_logs_default() {
+            log!("This is a test");
+        }
+
+        fn it_logs_specific_level() {
+            log!("test 2", Warn);
         }
     }
 
