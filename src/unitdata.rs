@@ -2,7 +2,7 @@ extern crate rusqlite;
 extern crate serde;
 extern crate serde_json;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::env;
 use std::iter;
 use std::path::PathBuf;
@@ -42,21 +42,22 @@ impl Storage {
             conn: conn,
             revision: None,
         };
-        storage.init();
+        storage.init()?;
         Ok(storage)
     }
 
     fn init(&self) -> Result<(), JujuError> {
-        self.conn.execute("create table if not exists kv (key text,data text,primary key (key))",
-                          &[]);
-        self.conn.execute("
+        let _ = self.conn
+            .execute("create table if not exists kv (key text,data text,primary key (key))",
+                     &[]);
+        let _ = self.conn.execute("
         create table if not exists kv_revisions (key text, revision integer, data text,
             primary key (key, revision))",
-                          &[]);
-        self.conn.execute("create table if not exists hooks (version integer primary key \
+                                  &[]);
+        let _ = self.conn.execute("create table if not exists hooks (version integer primary key \
                            autoincrement,
            hook text, date text )",
-                          &[]);
+                                  &[]);
         Ok(())
     }
 
@@ -158,7 +159,7 @@ impl Storage {
                         values.push(&revision);
                         values.push(&deleted);
                     }
-                    self.conn
+                    let _ = self.conn
                         .execute(&format!("insert into kv_revisions values {}", field_list),
                                  &values[..]);
                 }

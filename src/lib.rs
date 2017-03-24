@@ -52,7 +52,6 @@ extern crate memchr;
 extern crate rusqlite;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
 extern crate serde_json;
 
 use std::collections::HashMap;
