@@ -13,7 +13,6 @@
 //! #[macro_use]
 //! extern crate juju;
 //! extern crate log;
-//! use std::env;
 //! use log::LogLevel;
 //!
 //! fn config_changed()->Result<(), String>{
@@ -22,7 +21,7 @@
 //! }
 //!
 //! fn main(){
-//!     let mut hook_registry: Vec<juju::Hook> = vec![
+//!     let hook_registry: Vec<juju::Hook> = vec![
 //!         hook!("config-changed", config_changed)
 //!     ];
 //!     let result =  juju::process_hooks(hook_registry);
@@ -50,6 +49,10 @@
 extern crate charmhelpers;
 extern crate log;
 extern crate memchr;
+extern crate rusqlite;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
 extern crate serde_json;
 
 use std::collections::HashMap;
@@ -69,6 +72,7 @@ use memchr::memchr;
 pub use charmhelpers::core::hookenv::log;
 
 pub mod macros;
+pub mod unitdata;
 
 // Custom error handling for the library
 #[derive(Debug)]
@@ -77,6 +81,7 @@ pub enum JujuError {
     FromUtf8Error(std::string::FromUtf8Error),
     IoError(io::Error),
     ParseIntError(std::num::ParseIntError),
+    RusqliteError(rusqlite::Error),
     SerdeError(serde_json::Error),
     VarError(std::env::VarError),
 }
@@ -92,6 +97,7 @@ impl JujuError {
             JujuError::FromUtf8Error(ref err) => err.description().to_string(),
             JujuError::IoError(ref err) => err.description().to_string(),
             JujuError::ParseIntError(ref err) => err.description().to_string(),
+            JujuError::RusqliteError(ref err) => err.description().to_string(),
             JujuError::SerdeError(ref err) => err.description().to_string(),
             JujuError::VarError(ref err) => err.description().to_string(),
         }
@@ -110,6 +116,7 @@ impl Error for JujuError {
             JujuError::FromUtf8Error(ref err) => err.description(),
             JujuError::IoError(ref err) => err.description(),
             JujuError::ParseIntError(ref err) => err.description(),
+            JujuError::RusqliteError(ref err) => err.description(),
             JujuError::SerdeError(ref err) => err.description(),
             JujuError::VarError(ref err) => err.description(),
         }
@@ -121,6 +128,7 @@ impl Error for JujuError {
             JujuError::IoError(ref err) => err.cause(),
             JujuError::ParseIntError(ref err) => err.cause(),
             JujuError::SerdeError(ref err) => err.cause(),
+            JujuError::RusqliteError(ref err) => err.cause(),
             JujuError::VarError(ref err) => err.cause(),
         }
     }
@@ -148,6 +156,12 @@ impl From<std::num::ParseIntError> for JujuError {
 impl From<std::env::VarError> for JujuError {
     fn from(err: std::env::VarError) -> JujuError {
         JujuError::VarError(err)
+    }
+}
+
+impl From<rusqlite::Error> for JujuError {
+    fn from(err: rusqlite::Error) -> JujuError {
+        JujuError::RusqliteError(err)
     }
 }
 
@@ -841,7 +855,6 @@ pub fn storage_list() -> Result<String, JujuError> {
 /// ```
 ///     extern crate juju;
 ///     extern crate log;
-///     use std::env;
 ///
 ///     fn config_changed()->Result<(), String>{
 ///         //Do nothing
