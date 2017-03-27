@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use self::chrono::offset::utc::UTC;
 use self::chrono::datetime::DateTime;
 use self::rusqlite::Connection;
+use self::rusqlite::Error::QueryReturnedNoRows;
 use self::serde::{Deserialize, Serialize};
 use self::serde_json::Value;
 use super::JujuError;
@@ -73,12 +74,24 @@ impl Storage {
         Ok(())
     }
 
-    pub fn get<T>(&self, key: &str) -> Result<T, JujuError>
+    pub fn get<T>(&self, key: &str) -> Result<Option<T>, JujuError>
         where T: Deserialize
     {
-        let result: String = self.conn
-            .query_row("SELECT data from kv where key=?", &[&key], |row| row.get(0))?;
-        Ok(serde_json::from_str(&result)?)
+        let result: String = match self.conn
+            .query_row("SELECT data from kv where key=?", &[&key], |row| row.get(0)) {
+            Ok(result) => result,
+            Err(e) => {
+                match e {
+                    QueryReturnedNoRows => {
+                        return Ok(None);
+                    }
+                    _ => {
+                        return Err(JujuError::RusqliteError(e));
+                    }
+                }
+            }
+        };
+        Ok(Some(serde_json::from_str(&result)?))
     }
 
     /// Get a range of keys starting with a common prefix as a mapping of

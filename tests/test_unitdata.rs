@@ -11,15 +11,15 @@ fn get_set_delete_keys() {
     let unitdata = Storage::new(Some(PathBuf::from("/tmp/unitdata.db")))
         .expect("Failed to connect to database");
     unitdata.set("foo", "bar").unwrap();
-    let value: Result<String, JujuError> = unitdata.get("foo");
-    assert_eq!("bar", value.unwrap());
+    let value: Result<Option<String>, JujuError> = unitdata.get("foo");
+    assert_eq!("bar", value.unwrap().unwrap());
 
     let mut updates: HashMap<String, String> = HashMap::new();
     updates.insert("foo".to_string(), "baz".to_string());
     unitdata.update(updates, None).expect("Updates failed");
 
-    let value: Result<String, JujuError> = unitdata.get("foo");
-    assert_eq!("baz", value.unwrap());
+    let value: Result<Option<String>, JujuError> = unitdata.get("foo");
+    assert_eq!("baz", value.unwrap().unwrap());
 
     // Test that delete works
     unitdata.unset("foo").unwrap();
