@@ -9,6 +9,10 @@ license = "MIT"
 
 [dependencies]
 charmhelpers = "~0.1"
+chrono = "~0.3"
 log = "~0.3"
 memchr = "~1.0"
-serde_json = "~0.8"
+rusqlite = {features=["chrono"], version="~0.10"}
+serde = "~0.9"
+serde_derive = "~0.9"
+serde_json = "~0.9"

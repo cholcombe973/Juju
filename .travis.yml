@@ -1,5 +1,12 @@
 sudo: false
 language: rust
+dist: trusty
+addons:
+  apt:
+    packages:
+    - sqlite3
+env:
+  - CHARM_DIR="/home/ubuntu"
 before_script:
 - |
   pip install 'travis-cargo<0.2' --user &&
