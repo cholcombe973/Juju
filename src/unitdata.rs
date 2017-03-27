@@ -1,3 +1,4 @@
+extern crate chrono;
 extern crate rusqlite;
 extern crate serde;
 extern crate serde_json;
@@ -7,6 +8,8 @@ use std::env;
 use std::iter;
 use std::path::PathBuf;
 
+use self::chrono::offset::utc::UTC;
+use self::chrono::datetime::DateTime;
 use self::rusqlite::Connection;
 use self::serde::{Deserialize, Serialize};
 use self::serde_json::Value;
@@ -18,12 +21,21 @@ use super::JujuError;
 /// Values are automatically json encoded/decoded.
 pub struct Storage {
     conn: Connection,
-    revision: Option<String>,
+    revision: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Record {
     slots: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+pub struct History {
+    data: Value,
+    date: DateTime<UTC>,
+    hook: String,
+    key: String,
+    revision: u32,
 }
 
 impl Storage {
@@ -129,7 +141,7 @@ impl Storage {
                       prefix: Option<String>)
                       -> Result<u32, JujuError> {
         let deleted = String::from("\"DELETED\"");
-        let revision = self.revision.clone().unwrap_or("".to_string());
+        let revision = self.revision.clone().unwrap_or(0);
         let prefix = prefix.unwrap_or("".to_string());
 
         match keys {
@@ -225,5 +237,45 @@ impl Storage {
         };
 
         return Ok(());
+    }
+    /*
+    ///Scope all future interactions to the current hook execution
+    ///revision
+    pub fn hook_scope(&mut self, name: &str) ->Result<String,JujuError>{
+        assert!(self.revision.is_none());
+        let _ = self.conn.execute("insert into hooks (hook, date) values (?, ?)",
+            &[name or sys.argv[0],
+             datetime.datetime.utcnow().isoformat()])?;
+            self.revision = self.cursor.lastrowid;
+            yield self.revision;
+            self.revision = None
+    }
+    */
+
+    pub fn gethistory(&self, key: &str) -> Result<Vec<History>, JujuError> {
+        let mut results: Vec<History> = Vec::new();
+        let mut stmt = self.conn
+            .prepare("select kv.revision, kv.key, kv.data, h.hook, h.date from kv_revisions kv, \
+                      hooks h where kv.key=? and kv.revision = h.version")?;
+        let mut rows = stmt.query(&[&key])?;
+
+        while let Some(result_row) = rows.next() {
+            let row = result_row?;
+
+            let revision: u32 = row.get(0);
+            let key: String = row.get(1);
+            let data: String = row.get(2);
+            let hook: String = row.get(3);
+            let date: DateTime<UTC> = row.get(4);
+
+            results.push(History {
+                data: serde_json::from_str(&data)?,
+                date: date,
+                key: key,
+                hook: hook,
+                revision: revision,
+            });
+        }
+        Ok(results)
     }
 }
