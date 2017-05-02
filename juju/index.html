@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `juju` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, juju">
+
+    <title>juju - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'juju', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>juju</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/juju/lib.rs.html#1-1022' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>A library to interface with Juju.  For more information about Juju see
+<a href="https://jujucharms.com/docs/stable/about-juju">Juju</a></p>
+
+<p>A hello world Juju charm example in Rust:
+You will need a working Juju environment for this to function properly.  See <a href="https://jujucharms.com/docs/stable/getting-started">Setting up Juju</a>.  After Juju is functioning see
+<a href="https://jujucharms.com/docs/stable/authors-charm-components">What makes a Charm</a> for the base
+components of a charm.</p>
+
+<p>Our src/main.rs will contain the following:</p>
+
+<h1 id='examples' class='section-header'><a href='#examples'>Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">juju</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
+<span class="kw">use</span> <span class="ident">log</span>::<span class="ident">LogLevel</span>;
+
+<span class="kw">fn</span> <span class="ident">config_changed</span>()<span class="op">-&gt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">String</span><span class="op">&gt;</span>{
+    <span class="ident">juju</span>::<span class="ident">log</span>(<span class="string">&quot;Hello Juju from Rust!&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Debug</span>));
+    <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>(){
+    <span class="kw">let</span> <span class="ident">hook_registry</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">juju</span>::<span class="ident">Hook</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="macro">hook</span><span class="macro">!</span>(<span class="string">&quot;config-changed&quot;</span>, <span class="ident">config_changed</span>)
+    ];
+    <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span>  <span class="ident">juju</span>::<span class="ident">process_hooks</span>(<span class="ident">hook_registry</span>);
+
+    <span class="kw">if</span> <span class="ident">result</span>.<span class="ident">is_err</span>(){
+        <span class="ident">juju</span>::<span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Hook failed with error: {:?}&quot;</span>, <span class="ident">result</span>.<span class="ident">err</span>()),
+            <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Error</span>));
+    }<span class="kw">else</span>{
+        <span class="ident">juju</span>::<span class="ident">log</span>(<span class="string">&quot;Hook call was successful!&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Debug</span>));
+    }
+}</pre>
+
+<p>Now you can build with <code>cargo build</code> and install the binary in the hooks directory.</p>
+
+<p>Create a symlink in the hooks directory with <code>ln -s hello-world config-changed</code>.  Juju will
+attempt to run that symlink and our Juju library will map that to our config_changed function.</p>
+
+<p>We can test our hello-world charm by deploying with juju and watching the debug logs. See
+<a href="https://jujucharms.com/docs/stable/charms-deploying">Deploying a Charm</a> for more information.</p>
+
+<p>You should see a message in juju debug-log like this <code>unit-hello-world-0[6229]: 2015-08-21 16:16:05 INFO unit.hello-world/0.juju-log server.go:254 Hello Juju from Rust!</code></p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="unitdata/index.html"
+                                  title='mod juju::unitdata'>unitdata</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.hook.html"
+                                  title='macro juju::hook'>hook</a></td>
+                           <td class='docblock-short'>
+                                <p>A basic macro to ease creation and management
+of Hooks</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.log.html"
+                                  title='macro juju::log'>log</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="macro" href="macro.status_set.html"
+                                  title='macro juju::status_set'>status_set</a></td>
+                           <td class='docblock-short'>
+                                <p>A Macro to set Juju&#39;s status</p>
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Config.html"
+                                  title='struct juju::Config'>Config</a></td>
+                           <td class='docblock-short'>
+                                <p>A HashMap representation of the charm&#39;s config.yaml, with some
+extra features:
+- See which values in the HashMap have changed since the previous hook.
+- For values that have changed, see what the previous value was.
+- Store arbitrary data for use in a later hook.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Context.html"
+                                  title='struct juju::Context'>Context</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Hook.html"
+                                  title='struct juju::Hook'>Hook</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Relation.html"
+                                  title='struct juju::Relation'>Relation</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Status.html"
+                                  title='struct juju::Status'>Status</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.JujuError.html"
+                                  title='enum juju::JujuError'>JujuError</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.LogLevel.html"
+                                  title='enum juju::LogLevel'>LogLevel</a></td>
+                           <td class='docblock-short'>
+                                <p>An enum representing the available verbosity levels of the logging framework</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.StatusType.html"
+                                  title='enum juju::StatusType'>StatusType</a></td>
+                           <td class='docblock-short'>
+                                <p>For information about what these StatusType variants mean see: <a href="https://jujucharms.com/docs/stable/reference-status">Status reference</a></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.Transport.html"
+                                  title='enum juju::Transport'>Transport</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.action_fail.html"
+                                  title='fn juju::action_fail'>action_fail</a></td>
+                           <td class='docblock-short'>
+                                <p>See <a href="https://jujucharms.com/docs/devel/authors-charm-actions">Juju Actions</a> for more
+information</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.action_get.html"
+                                  title='fn juju::action_get'>action_get</a></td>
+                           <td class='docblock-short'>
+                                <p>action_get gets the value of the parameter at the given key
+See <a href="https://jujucharms.com/docs/devel/authors-charm-actions">Juju Actions</a> for more information</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.action_get_all.html"
+                                  title='fn juju::action_get_all'>action_get_all</a></td>
+                           <td class='docblock-short'>
+                                <p>action_get_all gets all values that are set
+See <a href="https://jujucharms.com/docs/devel/authors-charm-actions">Juju Actions</a> for more information</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.action_name.html"
+                                  title='fn juju::action_name'>action_name</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the name of the currently executing action</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.action_set.html"
+                                  title='fn juju::action_set'>action_set</a></td>
+                           <td class='docblock-short'>
+                                <p>action_set permits the Action to set results in a map to be returned at completion of
+the Action.
+See <a href="https://jujucharms.com/docs/devel/authors-charm-actions">Juju Actions</a> for more
+information</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.action_tag.html"
+                                  title='fn juju::action_tag'>action_tag</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the tag of the currently executing action</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.action_uuid.html"
+                                  title='fn juju::action_uuid'>action_uuid</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the uuid of the currently executing action</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.add_metric.html"
+                                  title='fn juju::add_metric'>add_metric</a></td>
+                           <td class='docblock-short'>
+                                <p>Add metric values
+See <a href="https://jujucharms.com/docs/2.0/developer-metrics">Juju Metrics</a> for more
+information
+May only be called from the collect-metrics hook</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.application_version_set.html"
+                                  title='fn juju::application_version_set'>application_version_set</a></td>
+                           <td class='docblock-short'>
+                                <p>Charm authors may trigger this command from any hook to output what
+version of the application is running. This could be a package version,
+for instance postgres version 9.5. It could also be a build number or
+version control revision identifier, for instance git sha 6fb7ba68.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.az_info.html"
+                                  title='fn juju::az_info'>az_info</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the availability zone</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.close_port.html"
+                                  title='fn juju::close_port'>close_port</a></td>
+                           <td class='docblock-short'>
+                                <p>This will hide a port on the unit.  The transport argument will indicate whether tcp or udp
+should be exposed</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.config_get.html"
+                                  title='fn juju::config_get'>config_get</a></td>
+                           <td class='docblock-short'>
+                                <p>This will return a configuration item that corresponds to the key passed in</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.config_get_all.html"
+                                  title='fn juju::config_get_all'>config_get_all</a></td>
+                           <td class='docblock-short'>
+                                <p>config_get_all will return all configuration options as a HashMap<String,String></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.is_leader.html"
+                                  title='fn juju::is_leader'>is_leader</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns true/false if this unit is the leader</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.leader_get.html"
+                                  title='fn juju::leader_get'>leader_get</a></td>
+                           <td class='docblock-short'>
+                                <p>Juju leader get value(s)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.leader_set.html"
+                                  title='fn juju::leader_set'>leader_set</a></td>
+                           <td class='docblock-short'>
+                                <p>Juju leader set value(s)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.log.html"
+                                  title='fn juju::log'>log</a></td>
+                           <td class='docblock-short'>
+                                <p>Log a message, at an optional log::LogLevel, to the Juju log</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.meter_info.html"
+                                  title='fn juju::meter_info'>meter_info</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the meter status information, if running in the meter-status-changed hook</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.meter_status.html"
+                                  title='fn juju::meter_status'>meter_status</a></td>
+                           <td class='docblock-short'>
+                                <p>Get the meter status, if running in the meter-status-changed hook</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.open_port.html"
+                                  title='fn juju::open_port'>open_port</a></td>
+                           <td class='docblock-short'>
+                                <p>This will expose a port on the unit.  The transport argument will indicate whether tcp or udp
+should be exposed</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.process_hooks.html"
+                                  title='fn juju::process_hooks'>process_hooks</a></td>
+                           <td class='docblock-short'>
+                                <p>Call this to process your cmd line arguments and call any needed hooks</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.reboot.html"
+                                  title='fn juju::reboot'>reboot</a></td>
+                           <td class='docblock-short'>
+                                <p>This will reboot your juju instance.  Examples of using this are when a new kernel is installed
+and the virtual machine or server needs to be rebooted to use it.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_get.html"
+                                  title='fn juju::relation_get'>relation_get</a></td>
+                           <td class='docblock-short'>
+                                <p>Get relation information for the current unit</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_get_by_id.html"
+                                  title='fn juju::relation_get_by_id'>relation_get_by_id</a></td>
+                           <td class='docblock-short'>
+                                <p>Get relation information using a specific relation ID. Used outside of relation hooks</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_get_by_unit.html"
+                                  title='fn juju::relation_get_by_unit'>relation_get_by_unit</a></td>
+                           <td class='docblock-short'>
+                                <p>Get relation information for a specific unit</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_ids.html"
+                                  title='fn juju::relation_ids'>relation_ids</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_ids_by_identifier.html"
+                                  title='fn juju::relation_ids_by_identifier'>relation_ids_by_identifier</a></td>
+                           <td class='docblock-short'>
+                                <p>Gets the relation IDs by their identifier</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_list.html"
+                                  title='fn juju::relation_list'>relation_list</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns a list of all related units</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_list_by_id.html"
+                                  title='fn juju::relation_list_by_id'>relation_list_by_id</a></td>
+                           <td class='docblock-short'>
+                                <p>Returns a list of all related units for the supplied identifier</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_set.html"
+                                  title='fn juju::relation_set'>relation_set</a></td>
+                           <td class='docblock-short'>
+                                <p>Set relation information for the current unit</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.relation_set_by_id.html"
+                                  title='fn juju::relation_set_by_id'>relation_set_by_id</a></td>
+                           <td class='docblock-short'>
+                                <p>Sets relation information using a specific relation ID. Used outside of relation hooks</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.status_get.html"
+                                  title='fn juju::status_get'>status_get</a></td>
+                           <td class='docblock-short'>
+                                <p>Retrieve the previously set juju workload state</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.status_set.html"
+                                  title='fn juju::status_set'>status_set</a></td>
+                           <td class='docblock-short'>
+                                <p>Set the status of your unit to indicate to the Juju if everything is ok or something is wrong.
+See the Status enum for information about what can be set.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.storage_get.html"
+                                  title='fn juju::storage_get'>storage_get</a></td>
+                           <td class='docblock-short'>
+                                <p>Return the location of the mounted storage device.  The mounted
+storage devices can be gotten by calling storage_list() and
+then passed into this function to get their mount location.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.storage_get_location.html"
+                                  title='fn juju::storage_get_location'>storage_get_location</a></td>
+                           <td class='docblock-short'>
+                                <p>If storage drives were allocated to your unit this will get the path of them.
+In the storage-attaching hook this will tell you the location where the storage
+is attached to.  IE: /dev/xvdf for block devices or /mnt/{name} for filesystem devices</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.storage_list.html"
+                                  title='fn juju::storage_list'>storage_list</a></td>
+                           <td class='docblock-short'>
+                                <p>Used to list storage instances that are attached to the unit.
+The names returned may be passed through to storage_get</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.unit_get_private_addr.html"
+                                  title='fn juju::unit_get_private_addr'>unit_get_private_addr</a></td>
+                           <td class='docblock-short'>
+                                <p>This will return the private IP address associated with the unit.
+It can be very useful for services that require communicating with the other units related
+to it.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.unit_get_public_addr.html"
+                                  title='fn juju::unit_get_public_addr'>unit_get_public_addr</a></td>
+                           <td class='docblock-short'>
+                                <p>This will return the public IP address associated with the unit.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "juju";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

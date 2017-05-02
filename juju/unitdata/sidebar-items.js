@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["History",""],["Record",""],["Storage","A connection to the unit's Key/Value data Simple key value database for local unit state within charms. Values are automatically json encoded/decoded."]]});
