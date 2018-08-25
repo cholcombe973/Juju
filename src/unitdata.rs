@@ -8,8 +8,7 @@ use std::env;
 use std::iter;
 use std::path::PathBuf;
 
-use self::chrono::offset::utc::UTC;
-use self::chrono::datetime::DateTime;
+use self::chrono::{DateTime, Utc};
 use self::rusqlite::Connection;
 use self::rusqlite::Error::QueryReturnedNoRows;
 use self::serde::{Deserialize, Serialize};
@@ -33,7 +32,7 @@ pub struct Record {
 #[derive(Debug)]
 pub struct History {
     data: Value,
-    date: DateTime<UTC>,
+    date: DateTime<Utc>,
     hook: String,
     key: String,
     revision: u32,
@@ -279,7 +278,7 @@ impl Storage {
             let key: String = row.get(1);
             let data: String = row.get(2);
             let hook: String = row.get(3);
-            let date: DateTime<UTC> = row.get(4);
+            let date: DateTime<Utc> = row.get(4);
 
             results.push(History {
                 data: serde_json::from_str(&data)?,
